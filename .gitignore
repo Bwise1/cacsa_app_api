@@ -1,0 +1,10 @@
+.env
+npm-debug.log
+yarn-error.log
+/.idea
+/.vscode
+/frontend/node_modules
+/backend/uploads
+/app.log
+/.github/
+node_modules
