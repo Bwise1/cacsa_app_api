@@ -29,6 +29,27 @@ app.post("/initialize-transaction", async (req, res) => {
   }
 });
 
+// Confirm Paystack Transaction Status
+app.get("/paystack/confirm/:reference", async (req, res) => {
+  try {
+    const { reference } = req.params;
+    const response = await axios.get(
+      `https://api.paystack.co/transaction/verify/${reference}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    const { status, amount } = response.data.data;
+    res.json({ status, amount });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Error confirming Paystack transaction status");
+  }
+});
+
 app.listen(port, () => {
   console.log("Server listening on port ", port);
 });
