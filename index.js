@@ -7,7 +7,7 @@ require("dotenv").config();
 app.use(express.json());
 
 const port = process.env.PORT || 3000;
-app.post("/initialize-transaction", async (req, res) => {
+app.post("/paystack/initialize-transaction", async (req, res) => {
   try {
     const { amount, email } = req.body;
     const response = await axios.post(
