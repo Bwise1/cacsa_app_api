@@ -7,6 +7,7 @@ require("dotenv").config();
 app.use(express.json());
 
 const port = process.env.PORT || 3000;
+const plan = process.env.PAYSTACK_PLAN_CODE;
 app.post("/paystack/initialize-transaction", async (req, res) => {
   try {
     const { amount, email } = req.body;
@@ -15,6 +16,7 @@ app.post("/paystack/initialize-transaction", async (req, res) => {
       {
         amount,
         email,
+        plan,
       },
       {
         headers: {
