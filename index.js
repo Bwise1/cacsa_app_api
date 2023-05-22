@@ -15,8 +15,7 @@ app.post("/paystack/initialize-transaction", async (req, res) => {
       "https://api.paystack.co/transaction/initialize",
       {
         amount,
-        email,
-        plan,
+        email
       },
       {
         headers: {
