@@ -71,7 +71,7 @@ exports.getAudioById = async (req, res) => {
     // console.log("Fetched audio by ID:", rows[0]);
     res.status(200).send({ status: "success", audio: rows[0] });
   } catch (error) {
-    console.log("Error fetching audio by ID:", error);
+    console.error("Error fetching audio by ID:", error);
     res.status(500).send({ status: "error" });
   }
 };
