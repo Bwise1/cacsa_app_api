@@ -19,6 +19,13 @@ const {
   getAudioById,
 } = require("./controllers/audioController");
 
+const {
+  getAllCategories,
+  addCategory,
+  editCategoryName,
+  deleteCategory,
+} = require("./controllers/categoryController");
+
 const port = process.env.PORT || 3000;
 const plan = process.env.PAYSTACK_PLAN_CODE;
 
@@ -119,6 +126,12 @@ app.post("/thumb/upload", upload.single("thumbfile"), async (req, res) => {
 app.post("/audio", storeAudio);
 app.get("/audio", getAllAudio);
 app.get("/audio/:id", getAudioById);
+
+//categories endpoints
+app.get("/category", getAllCategories);
+app.post("/category", addCategory);
+app.put("/category/:categoryId", editCategoryName);
+app.delete("/category/:categoryId", deleteCategory);
 
 app.listen(port, () => {
   console.log("Server listening on port ", port);
