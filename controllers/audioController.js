@@ -50,7 +50,7 @@ exports.getAllAudio = async (req, res) => {
     // console.log("Fetched all audio:", rows);
     res.status(200).send({ status: "success", audios: rows });
   } catch (error) {
-    console.log("Error fetching all audio:", error);
+    console.error("Error fetching all audio:", error);
     res.status(500).send({ status: "error" });
   }
 };
