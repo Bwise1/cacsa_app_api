@@ -1,6 +1,7 @@
 const express = require("express");
 const axios = require("axios");
 const morgan = require("morgan");
+const cors = require("cors");
 
 const app = express();
 require("dotenv").config();
@@ -9,6 +10,7 @@ require("dotenv").config();
 const { upload, uploadFile } = require("./utils/aws");
 const logger = require("./utils/logger");
 
+app.use(cors());
 app.use(express.json());
 
 app.use(morgan("dev"));

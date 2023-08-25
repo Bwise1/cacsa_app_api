@@ -12,6 +12,7 @@
   "dependencies": {
     "aws-sdk": "^2.1435.0",
     "axios": "^1.3.6",
+    "cors": "^2.8.5",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
     "morgan": "^1.10.0",
