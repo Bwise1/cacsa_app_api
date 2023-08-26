@@ -1,4 +1,5 @@
-const bcrypt = require("bcrypt");
+// const bcrypt = require("bcrypt");
+const argon2 = require("argon2");
 const jwt = require("jsonwebtoken");
 const { jwtSecret } = require("../config"); // Secret key for JWT
 const UserModel = require("../models/UserModel");
@@ -9,14 +10,14 @@ class AuthService {
   }
 
   async registerUser(newUser) {
-    const hashedPassword = await bcrypt.hash(newUser.password, 10);
+    const hashedPassword = await argon2.hash(newUser.password, 10);
     const userWithHashedPassword = { ...newUser, password: hashedPassword };
     return this.userModel.createUser(userWithHashedPassword);
   }
 
   async authenticateUser(username, password) {
     const user = await this.userModel.getUserByUsername(username);
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    if (!user || !(await argon2.compare(password, user.password))) {
       return null; // Invalid credentials
     }
 
