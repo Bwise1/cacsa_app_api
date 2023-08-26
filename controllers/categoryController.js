@@ -1,9 +1,11 @@
-const db = require("../db/db");
+const express = require("express");
+const categoryModel = require("../models/CategoryModel");
 
-// Fetch all categories
-exports.getAllCategories = async (req, res) => {
+const router = express.Router();
+
+router.get("/", async (req, res) => {
   try {
-    const [categories] = await db.query("SELECT * FROM categories");
+    const categories = await categoryModel.getAllCategories();
     res.status(200).json({ status: "success", categories: categories });
   } catch (error) {
     console.error("Error fetching categories:", error);
@@ -11,35 +13,28 @@ exports.getAllCategories = async (req, res) => {
       .status(500)
       .send({ error: "An error occurred while fetching categories." });
   }
-};
+});
 
-// Add new category
-exports.addCategory = async (req, res) => {
+router.post("/", async (req, res) => {
   const { categoryName } = req.body;
 
   try {
-    const result = await db.query("INSERT INTO categories (name) VALUES (?)", [
-      categoryName,
-    ]);
-    res.status(201).json({ status: "success", categoryId: result.insertId });
+    const categoryId = await categoryModel.addCategory(categoryName);
+    res.status(201).json({ status: "success", categoryId: categoryId });
   } catch (error) {
     console.error("Error adding category:", error);
     res
       .status(500)
       .send({ error: "An error occurred while adding a new category." });
   }
-};
+});
 
-// Edit category name
-exports.editCategoryName = async (req, res) => {
+router.put("/:categoryId", async (req, res) => {
   const categoryId = req.params.categoryId;
   const { newName } = req.body;
 
   try {
-    await db.query("UPDATE categories SET name = ? WHERE id = ?", [
-      newName,
-      categoryId,
-    ]);
+    await categoryModel.editCategoryName(categoryId, newName);
     res
       .status(200)
       .json({ status: "success", message: "Category name updated." });
@@ -49,14 +44,13 @@ exports.editCategoryName = async (req, res) => {
       .status(500)
       .send({ error: "An error occurred while updating the category name." });
   }
-};
+});
 
-// Delete category
-exports.deleteCategory = async (req, res) => {
+router.delete("/:categoryId", async (req, res) => {
   const categoryId = req.params.categoryId;
 
   try {
-    await db.query("DELETE FROM categories WHERE id = ?", [categoryId]);
+    await categoryModel.deleteCategory(categoryId);
     res.status(204).send();
   } catch (error) {
     console.error("Error deleting category:", error);
@@ -64,4 +58,6 @@ exports.deleteCategory = async (req, res) => {
       .status(500)
       .send({ error: "An error occurred while deleting the category." });
   }
-};
+});
+
+module.exports = router;
