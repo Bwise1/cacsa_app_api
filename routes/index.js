@@ -1,6 +1,6 @@
 const Router = require("express");
 const authController = require("../controllers/AuthController");
-const categoryController = require("../controllers/CategoryController");
+const categoryController = require("../controllers/categoryController");
 const audioController = require("../controllers/audioController");
 const subscriptionController = require("../controllers/SubscriptionController");
 
