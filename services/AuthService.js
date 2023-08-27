@@ -1,7 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { jwtSecret } = require("../config"); // Secret key for JWT
 const UserModel = require("../models/UserModel");
+require("dotenv").config();
 
 class AuthService {
   constructor() {
@@ -16,14 +16,19 @@ class AuthService {
 
   async authenticateUser(username, password) {
     const user = await this.userModel.getUserByUsername(username);
+    console.info(user);
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return null; // Invalid credentials
     }
 
-    const token = jwt.sign({ id: user.id, role: user.role }, jwtSecret, {
-      expiresIn: "1h",
-    });
-    return token;
+    const token = jwt.sign(
+      { id: user.id, role: user.role },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "1h",
+      }
+    );
+    return { user, token };
   }
 }
 

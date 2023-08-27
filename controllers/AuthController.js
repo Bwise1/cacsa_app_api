@@ -19,9 +19,9 @@ router.post("/register", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { username, password } = req.body;
-    const token = await authService.authenticateUser(username, password);
-    if (token) {
-      res.json({ message: "Login successful", token });
+    const data = await authService.authenticateUser(username, password);
+    if (data) {
+      res.json({ message: "Login successful", data });
     } else {
       res.status(401).json({ message: "Invalid credentials" });
     }
