@@ -25,6 +25,7 @@ router.post("/", async (req, res) => {
       category_id,
       audio_url,
       thumbnail_url,
+      duration,
     } = req.body;
 
     // Check for empty fields
@@ -33,8 +34,8 @@ router.post("/", async (req, res) => {
         .status(400)
         .send({ status: "error", message: "Missing required fields." });
     }
-    const durationS = await getAudioDurationFromUrl(audio_url);
-    const duration = formatDuration(durationS);
+    // const durationS = await getAudioDurationFromUrl(audio_url);
+    // const duration = formatDuration(durationS);
     // console.log(duration);
     const audioId = await audioService.storeAudioInfo(
       title,

@@ -1,15 +1,37 @@
-const ffmpeg = require("fluent-ffmpeg");
+// const ffmpeg = require("fluent-ffmpeg");
+
+// const getAudioDurationFromUrl = (fileUrl) => {
+//   return new Promise((resolve, reject) => {
+//     ffmpeg.ffprobe(fileUrl, (err, metadata) => {
+//       if (err) {
+//         console.error("Error probing audio file:", err);
+//         reject(err);
+//       } else {
+//         const audioDuration = metadata.format.duration;
+//         resolve(audioDuration);
+//       }
+//     });
+//   });
+// };
+
+const jsmediatags = require("jsmediatags");
 
 const getAudioDurationFromUrl = (fileUrl) => {
   return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(fileUrl, (err, metadata) => {
-      if (err) {
-        console.error("Error probing audio file:", err);
-        reject(err);
-      } else {
-        const audioDuration = metadata.format.duration;
-        resolve(audioDuration);
-      }
+    jsmediatags.read(fileUrl, {
+      onSuccess: (tag) => {
+        if (tag && tag.tags) {
+          const audioDuration = tag.tags.duration;
+          console.log("DURATION", tag.tags);
+          resolve(audioDuration);
+        } else {
+          reject(new Error("Audio file metadata not found"));
+        }
+      },
+      onError: (error) => {
+        console.error("Error reading audio file:", error);
+        reject(error);
+      },
     });
   });
 };
