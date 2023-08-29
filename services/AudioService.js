@@ -24,7 +24,8 @@ class AudioService {
     date,
     category_id,
     audio_url,
-    thumbnail_url
+    thumbnail_url,
+    duration
   ) {
     try {
       const audioId = await this.audioModel.storeAudio(
@@ -34,7 +35,8 @@ class AudioService {
         date,
         category_id,
         audio_url,
-        thumbnail_url
+        thumbnail_url,
+        duration
       );
       return audioId;
     } catch (error) {

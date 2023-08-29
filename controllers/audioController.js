@@ -3,6 +3,10 @@ const router = express.Router();
 const AudioService = require("../services/AudioService");
 const AudioModel = require("../models/AudioModel");
 const { upload } = require("../utils/aws");
+const {
+  getAudioDurationFromUrl,
+  formatDuration,
+} = require("../utils/audioProbe");
 require("dotenv").config();
 
 const audioModelInstance = new AudioModel();
@@ -29,7 +33,9 @@ router.post("/", async (req, res) => {
         .status(400)
         .send({ status: "error", message: "Missing required fields." });
     }
-
+    const durationS = await getAudioDurationFromUrl(audio_url);
+    const duration = formatDuration(durationS);
+    // console.log(duration);
     const audioId = await audioService.storeAudioInfo(
       title,
       description,
@@ -37,7 +43,8 @@ router.post("/", async (req, res) => {
       date,
       category_id,
       audio_url,
-      thumbnail_url
+      thumbnail_url,
+      duration
     );
 
     res.status(201).send({ status: "success", audioId });

@@ -12,12 +12,13 @@ class AudioModel {
     date,
     category_id,
     audio_url,
-    thumbnail_url
+    thumbnail_url,
+    duration
   ) {
     try {
       const insertQuery = `
-        INSERT INTO audio_files (title, description, artist, date, category_id, audio_url, thumbnail_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO audio_files (title, description, artist, date, category_id, audio_url, thumbnail_url,duration)
+        VALUES (?, ?, ?, ?, ?, ?, ?,?)
       `;
       const result = await db.query(insertQuery, [
         title,
@@ -27,6 +28,7 @@ class AudioModel {
         category_id,
         audio_url,
         thumbnail_url,
+        duration,
       ]);
 
       console.log("Audio info stored:", result);
