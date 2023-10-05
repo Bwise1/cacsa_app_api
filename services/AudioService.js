@@ -71,6 +71,15 @@ class AudioService {
     const folder = "thumbs";
     return this.uploadFile(filename, folder, file, contentType);
   }
+
+  async getAggregate() {
+    const totalAudioCount = await this.audioModel.getTotalAudioCount();
+    console.log("Total Audio Count:", totalAudioCount);
+
+    const audioCountByCategory =
+      await this.audioModel.getAudioCountByCategory();
+    console.log("Audio Count by Category:", audioCountByCategory);
+  }
 }
 
 module.exports = AudioService;

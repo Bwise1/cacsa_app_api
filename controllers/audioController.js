@@ -111,4 +111,12 @@ router.post("/thumb/upload", upload.single("thumbfile"), async (req, res) => {
   }
 });
 
+router.get("/stats/all", async (req, res) => {
+  try {
+    await audioService.getAggregate();
+  } catch (error) {
+    console.error(error);
+  }
+});
+
 module.exports = router;

@@ -65,6 +65,32 @@ class AudioModel {
       throw error;
     }
   }
+
+  async getTotalAudioCount() {
+    try {
+      const query = "SELECT COUNT(*) AS total FROM audio_files";
+      const [result] = await db.query(query);
+      return result[0].total;
+    } catch (error) {
+      console.error("Error fetching total audio count:", error);
+      throw error;
+    }
+  }
+
+  async getAudioCountByCategory() {
+    try {
+      const query = `
+        SELECT category_id, COUNT(*) AS count
+        FROM audio_files
+        GROUP BY category_id
+      `;
+      const [rows] = await db.query(query);
+      return rows;
+    } catch (error) {
+      console.error("Error fetching audio count by category:", error);
+      throw error;
+    }
+  }
 }
 
 module.exports = AudioModel;

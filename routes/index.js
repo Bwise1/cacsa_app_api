@@ -3,6 +3,8 @@ const authController = require("../controllers/AuthController");
 const categoryController = require("../controllers/categoryController");
 const audioController = require("../controllers/audioController");
 const subscriptionController = require("../controllers/SubscriptionController");
+const statesController = require("../controllers/StatesController");
+const branchesController = require("../controllers/BranchController");
 
 const router = Router();
 
@@ -20,6 +22,12 @@ router.use("/audio", audioController);
 
 //subscription route
 router.use("/paystack", subscriptionController);
+
+//states route
+router.use("/state", statesController);
+
+//branches route
+router.use("/branch", branchesController);
 
 // app.post("/paystack/initialize-transaction", async (req, res) => {
 //   try {
