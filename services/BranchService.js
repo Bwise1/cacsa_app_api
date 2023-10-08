@@ -29,6 +29,28 @@ class BranchService {
       throw new Error("Error adding branches");
     }
   }
+
+  async getHigherInstitutionBranches() {
+    try {
+      const type = "Higher Institution"; // Set the type you want to filter
+      const branches = await this.branchModel.getBranchesByType(type);
+      return branches;
+    } catch (error) {
+      throw new Error(
+        `Error fetching Higher Institution branches: ${error.message}`
+      );
+    }
+  }
+
+  async getStateBranches() {
+    try {
+      const type = "State Branch"; // Set the type you want to filter
+      const branches = await this.branchModel.getBranchesByType(type);
+      return branches;
+    } catch (error) {
+      throw new Error(`Error fetching State branches: ${error.message}`);
+    }
+  }
 }
 
 module.exports = BranchService;

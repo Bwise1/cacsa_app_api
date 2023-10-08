@@ -21,6 +21,30 @@ router.get("/", async (req, res) => {
   }
 });
 
+router.get("/higher-institutions", async (req, res) => {
+  try {
+    const branches = await branchService.getHigherInstitutionBranches();
+    res.status(200).json({ status: "success", branches: branches });
+  } catch (error) {
+    console.error("Error fetching higher institution branches:", error);
+    res
+      .status(500)
+      .send({ error: "An error occurred while fetching branches." });
+  }
+});
+
+router.get("/state-branches", async (req, res) => {
+  try {
+    const branches = await branchService.getStateBranches();
+    res.status(200).json({ status: "success", branches: branches });
+  } catch (error) {
+    console.error("Error fetching state branches:", error);
+    res
+      .status(500)
+      .send({ error: "An error occurred while fetching branches." });
+  }
+});
+
 router.post("/", async (req, res) => {
   const { name, stateId, address, type, isHQ } = req.body;
 

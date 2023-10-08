@@ -70,6 +70,33 @@ class Branch {
       throw new Error("Error deleting branch");
     }
   }
+  static async getBranchesByType(type) {
+    const query = `
+      SELECT
+          b.id AS branch_id,
+          b.name AS branch_name,
+          s.state_name,
+          b.address,
+          b.location,
+          b.type,
+          b.is_HQ
+      FROM
+          branches AS b
+      JOIN
+          states AS s ON b.state_id = s.id
+      WHERE
+          b.type = ?
+      ORDER BY
+          b.type, s.state_name, b.name;
+    `;
+
+    try {
+      const [results] = await db.query(query, [type]);
+      return results;
+    } catch (error) {
+      throw new Error(`Error fetching branches: ${error.message}`);
+    }
+  }
 }
 
 module.exports = Branch;
