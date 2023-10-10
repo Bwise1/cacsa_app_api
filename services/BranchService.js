@@ -13,7 +13,16 @@ class BranchService {
     }
   }
 
-  async addBranch(name, stateId, address, location, type, isHQ) {
+  async addBranch(
+    name,
+    stateId,
+    address,
+    location,
+    type,
+    website,
+    phone,
+    isHQ
+  ) {
     try {
       const branchId = await this.branchModel.addBranch(
         name,
@@ -21,6 +30,8 @@ class BranchService {
         address,
         location,
         type,
+        website,
+        phone,
         isHQ
       );
       return branchId;

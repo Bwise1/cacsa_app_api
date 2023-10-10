@@ -46,7 +46,7 @@ router.get("/state-branches", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
-  const { name, stateId, address, type, isHQ } = req.body;
+  const { name, stateId, address, type, website, phone, isHQ } = req.body;
 
   // Call the geocodeAddress function to obtain coordinates
   geocodeAddress(address)
@@ -61,7 +61,7 @@ router.post("/", async (req, res) => {
 
       // Call your service's addBranch method to save the data
       branchService
-        .addBranch(name, stateId, address, location, type, isHQ)
+        .addBranch(name, stateId, address, location, type, website, phone, isHQ)
         .then((result) => {
           console.log("Branch added with ID:", result);
 

@@ -28,12 +28,21 @@ class Branch {
   }
 
   // Add a new branch
-  static async addBranch(name, stateId, address, location, type, isHQ) {
+  static async addBranch(
+    name,
+    stateId,
+    address,
+    location,
+    type,
+    website,
+    phone,
+    isHQ
+  ) {
     console.log({ stateId: stateId });
     try {
       const result = await db.query(
-        "INSERT INTO branches (name, state_id, address, location, type, is_HQ) VALUES (?, ?, ?, ST_GeomFromText(?), ?, ?)",
-        [name, stateId, address, location, type, isHQ]
+        "INSERT INTO branches (name, state_id, address, location, type, website, phone, is_HQ) VALUES (?, ?, ?, ST_GeomFromText(?), ?, ?, ?, ?)",
+        [name, stateId, address, location, type, website, phone, isHQ]
       );
       return result.insertId;
     } catch (error) {
@@ -49,13 +58,15 @@ class Branch {
     address,
     stateId,
     type,
+    website,
+    phone,
     isHQ,
     location
   ) {
     try {
       await db.query(
-        "UPDATE branches SET name = ?, address = ?, state_id = ?, type = ?, is_HQ = ?, location = ? WHERE id = ?",
-        [name, address, stateId, type, isHQ, location, branchId]
+        "UPDATE branches SET name = ?, address = ?, state_id = ?, type = ?, website = ?, phone = ?, is_HQ = ?, location = ? WHERE id = ?",
+        [name, address, stateId, type, website, phone, isHQ, location, branchId]
       );
     } catch (error) {
       throw new Error("Error updating branch");
@@ -79,6 +90,8 @@ class Branch {
           b.address,
           b.location,
           b.type,
+          b.website,
+          b.phone,
           b.is_HQ
       FROM
           branches AS b
