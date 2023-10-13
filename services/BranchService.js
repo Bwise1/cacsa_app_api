@@ -62,6 +62,22 @@ class BranchService {
       throw new Error(`Error fetching State branches: ${error.message}`);
     }
   }
+
+  async deleteBranch(branchId) {
+    try {
+      const branch = await this.branchModel.findById(branchId);
+      console.log(branch);
+      if (!branch) {
+        throw new Error("Branch not found");
+      } else {
+        const result = await this.branchModel.deleteBranch(branchId);
+        console.log("result:", result);
+        return result;
+      }
+    } catch (error) {
+      throw new Error(error);
+    }
+  }
 }
 
 module.exports = BranchService;

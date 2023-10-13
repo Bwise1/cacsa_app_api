@@ -14,9 +14,9 @@ class Branch {
   //find a branch
   static async findById(branchId) {
     // Validate branchId to ensure it's a positive integer
-    if (!Number.isInteger(branchId) || branchId <= 0) {
-      throw new Error("Invalid branch ID");
-    }
+    // if (!Number.isInteger(branchId) || branchId <= 0) {
+    //   throw new Error("Invalid branch ID");
+    // }
     try {
       const [branch] = await db.query("SELECT * FROM branches WHERE id = ?", [
         branchId,
@@ -76,11 +76,15 @@ class Branch {
   // Delete a branch
   static async deleteBranch(branchId) {
     try {
-      await db.query("DELETE FROM branches WHERE id = ?", [branchId]);
+      const result = await db.query("DELETE FROM branches WHERE id = ?", [
+        branchId,
+      ]);
+      return result.affectedRows;
     } catch (error) {
       throw new Error("Error deleting branch");
     }
   }
+
   static async getBranchesByType(type) {
     const query = `
       SELECT

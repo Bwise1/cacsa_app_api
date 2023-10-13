@@ -6,6 +6,7 @@ const BranchModel = require("../models/BranchesModel");
 const authMiddleware = require("../middlewares/authMiddleware");
 
 const geocodeAddress = require("../utils/geoCoding");
+const { log } = require("winston");
 
 const branchService = new BranchService(BranchModel);
 
@@ -88,4 +89,30 @@ router.post("/", async (req, res) => {
     });
 });
 
+router.delete("/:id", async (req, res) => {
+  try {
+    const branchId = req.params.id;
+    console.log(branchId);
+    if (!branchId) {
+      return res
+        .status(400)
+        .json({ message: "Bad Request: branchId is missing" });
+    } else {
+      const result = await branchService.deleteBranch(branchId);
+
+      res
+        .status(204)
+        .send({ status: "success", message: "deleted branch successful" });
+    }
+  } catch (error) {
+    console.error("test", error.message);
+    if (error.message === "Error: Branch not found") {
+      res.status(404).send({ error: error.message });
+    } else {
+      res
+        .status(500)
+        .send({ error: "An error occurred while deleting branch" });
+    }
+  }
+});
 module.exports = router;
