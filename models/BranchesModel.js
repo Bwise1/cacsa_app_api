@@ -41,7 +41,7 @@ class Branch {
     console.log({ stateId: stateId });
     try {
       const result = await db.query(
-        "INSERT INTO branches (name, state_id, address, location, type, website, phone, is_HQ) VALUES (?, ?, ?, ST_GeomFromText(?), ?, ?, ?, ?)",
+        "INSERT INTO branches (name, state_id, address, location, type, website, phone, is_HQ) VALUES (?, ?, ?, ST_GeomFromText(?), ?, ?, ?, CASE WHEN ? THEN 1 ELSE 0 END)",
         [name, stateId, address, location, type, website, phone, isHQ]
       );
       return result.insertId;
@@ -55,20 +55,21 @@ class Branch {
   static async editBranch(
     branchId,
     name,
-    address,
     stateId,
+    address,
+    location,
     type,
     website,
     phone,
-    isHQ,
-    location
+    isHQ
   ) {
     try {
       await db.query(
-        "UPDATE branches SET name = ?, address = ?, state_id = ?, type = ?, website = ?, phone = ?, is_HQ = ?, location = ? WHERE id = ?",
+        "UPDATE branches SET name = ?, address = ?, state_id = ?, type = ?, website = ?, phone = ?, is_HQ = ?, location = ST_GeomFromText(?) WHERE id = ?",
         [name, address, stateId, type, website, phone, isHQ, location, branchId]
       );
     } catch (error) {
+      console.error(error);
       throw new Error("Error updating branch");
     }
   }

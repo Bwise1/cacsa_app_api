@@ -46,50 +46,83 @@ router.get("/state-branches", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
-  const { name, stateId, address, type, website, phone, isHQ } = req.body;
+router.post("/", authMiddleware, async (req, res) => {
+  const {
+    name,
+    stateId,
+    address,
+    type,
+    website,
+    phone,
+    isHQ,
+    latitude,
+    longitude,
+  } = req.body;
 
-  // Call the geocodeAddress function to obtain coordinates
-  geocodeAddress(address)
-    .then((coordinates) => {
-      console.log("Coordinates:", coordinates);
+  // Format the coordinates as POINT(longitude latitude)
+  const location = `POINT(${longitude} ${latitude})`;
 
-      // Extract latitude and longitude from coordinates
-      const { latitude, longitude } = coordinates;
+  // Call your service's addBranch method to save the data
+  branchService
+    .addBranch(name, stateId, address, location, type, website, phone, isHQ)
+    .then((result) => {
+      console.log("Branch added with ID:", result);
 
-      // Format the coordinates as POINT(longitude latitude)
-      const location = `POINT(${longitude} ${latitude})`;
-
-      // Call your service's addBranch method to save the data
-      branchService
-        .addBranch(name, stateId, address, location, type, website, phone, isHQ)
-        .then((result) => {
-          console.log("Branch added with ID:", result);
-
-          // Send a response indicating success
-          res.status(201).json({ status: "success", branchId: result });
-        })
-        .catch((error) => {
-          console.log(error);
-          console.error("Error adding branch:", error.message);
-
-          // Send a response indicating an error
-          res
-            .status(500)
-            .json({ status: "error", message: "Error adding branch" });
-        });
+      // Send a response indicating success
+      res.status(201).json({ status: "success", branchId: result });
     })
     .catch((error) => {
-      console.error("Error:", error.message);
+      console.error("Error adding branch:", error.message);
 
       // Send a response indicating an error
-      res
-        .status(500)
-        .json({ status: "error", message: "Error geocoding address" });
+      res.status(500).json({ status: "error", message: "Error adding branch" });
     });
 });
 
-router.delete("/:id", async (req, res) => {
+// router.post("/", async (req, res) => {
+//   const { name, stateId, address, type, website, phone, isHQ } = req.body;
+
+//   // Call the geocodeAddress function to obtain coordinates
+//   geocodeAddress(address)
+//     .then((coordinates) => {
+//       console.log("Coordinates:", coordinates);
+
+//       // Extract latitude and longitude from coordinates
+//       const { latitude, longitude } = coordinates;
+
+//       // Format the coordinates as POINT(longitude latitude)
+//       const location = `POINT(${longitude} ${latitude})`;
+
+//       // Call your service's addBranch method to save the data
+//       branchService
+//         .addBranch(name, stateId, address, location, type, website, phone, isHQ)
+//         .then((result) => {
+//           console.log("Branch added with ID:", result);
+
+//           // Send a response indicating success
+//           res.status(201).json({ status: "success", branchId: result });
+//         })
+//         .catch((error) => {
+//           console.log(error);
+//           console.error("Error adding branch:", error.message);
+
+//           // Send a response indicating an error
+//           res
+//             .status(500)
+//             .json({ status: "error", message: "Error adding branch" });
+//         });
+//     })
+//     .catch((error) => {
+//       console.error("Error:", error.message);
+
+//       // Send a response indicating an error
+//       res
+//         .status(500)
+//         .json({ status: "error", message: "Error geocoding address" });
+//     });
+// });
+
+router.delete("/:id", authMiddleware, async (req, res) => {
   try {
     const branchId = req.params.id;
     console.log(branchId);
@@ -113,6 +146,51 @@ router.delete("/:id", async (req, res) => {
         .status(500)
         .send({ error: "An error occurred while deleting branch" });
     }
+  }
+});
+
+router.put("/:id", authMiddleware, async (req, res) => {
+  try {
+    const branchId = req.params.id;
+
+    if (!branchId) {
+      return res
+        .status(400)
+        .json({ message: "Bad Request: branchId is missing" });
+    }
+    const {
+      name,
+      stateId,
+      address,
+      type,
+      website,
+      phone,
+      isHQ,
+      latitude,
+      longitude,
+    } = req.body;
+
+    // Format the coordinates as POINT(longitude latitude)
+    const location = `POINT(${longitude} ${latitude})`;
+    await branchService.editBranch(
+      branchId,
+      name,
+      stateId,
+      address,
+      location,
+      type,
+      website,
+      phone,
+      isHQ
+    );
+
+    res.status(200).json({
+      status: "success",
+      message: "Branch edited successfully",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "An error occurred while editing branch" });
   }
 });
 module.exports = router;

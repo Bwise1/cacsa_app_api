@@ -24,6 +24,7 @@ class BranchService {
     isHQ
   ) {
     try {
+      const isHQValue = isHQ === "true" ? 1 : 0;
       const branchId = await this.branchModel.addBranch(
         name,
         stateId,
@@ -32,7 +33,7 @@ class BranchService {
         type,
         website,
         phone,
-        isHQ
+        isHQValue
       );
       return branchId;
     } catch (error) {
@@ -75,6 +76,44 @@ class BranchService {
         return result;
       }
     } catch (error) {
+      throw new Error(error);
+    }
+  }
+
+  async editBranch(
+    branchId,
+    name,
+    stateId,
+    address,
+    location,
+    type,
+    website,
+    phone,
+    isHQ
+  ) {
+    try {
+      const branch = await this.branchModel.findById(branchId);
+
+      if (!branch) {
+        throw new Error("Branch not found");
+      } else {
+        const isHQValue = isHQ === "true" ? 1 : 0;
+
+        // Update the branch data with the new data
+        await this.branchModel.editBranch(
+          branchId,
+          name,
+          stateId,
+          address,
+          location,
+          type,
+          website,
+          phone,
+          isHQValue
+        );
+      }
+    } catch (error) {
+      console.log(error);
       throw new Error(error);
     }
   }
