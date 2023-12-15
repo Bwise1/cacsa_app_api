@@ -14,6 +14,7 @@ class AudioService {
       file,
       contentType
     );
+    console.log("Link from service:", link);
     return link;
   }
 

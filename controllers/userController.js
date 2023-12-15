@@ -1,9 +1,19 @@
-const aws = require("aws-sdk");
-const multer = require("multer");
-const multers3 = require("multer-s3");
+const express = require("express");
+const UserService = require("../services/UserService");
 
-exports.setProfilePic = (req, res, next) => {
-  console.log(req.files);
+const authMiddleware = require("../middlewares/authMiddleware");
 
-  res.status(200).json({ data: req.files });
-};
+const router = express.Router();
+const userService = new UserService();
+
+router.get("/", async (req, res) => {
+  try {
+    const users = await userService.getAllUsers();
+    res.status(200).json({ status: "success", users: users });
+  } catch (error) {
+    console.error("Error in the controller", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+module.exports = router;

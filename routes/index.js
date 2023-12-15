@@ -5,6 +5,7 @@ const audioController = require("../controllers/audioController");
 const subscriptionController = require("../controllers/SubscriptionController");
 const statesController = require("../controllers/StatesController");
 const branchesController = require("../controllers/BranchController");
+const userController = require("../controllers/userController");
 
 const router = Router();
 
@@ -28,6 +29,9 @@ router.use("/state", statesController);
 
 //branches route
 router.use("/branch", branchesController);
+
+//user route
+router.use("/user", userController);
 
 // app.post("/paystack/initialize-transaction", async (req, res) => {
 //   try {
