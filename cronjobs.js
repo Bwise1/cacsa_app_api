@@ -4,16 +4,22 @@ const SubscriptionModel = require("./models/SubscriptionModel");
 
 async function expireSubscriptions() {
   try {
-    // Get the uids of the subscriptions that are set to 'expired'
     const rows = await SubscriptionModel.getExpiredSubscriptions();
 
-    // Update the status of these subscriptions to 'expired'
+    if (rows.length === 0) {
+      console.log("No expired subscriptions");
+      return;
+    }
+
     await SubscriptionModel.updateExpiredSubscriptions();
 
-    // Delete the corresponding documents from Firestore
     for (const row of rows) {
       const docRef = subscriptionsCollection.doc(row.uid);
-      await docRef.delete();
+      try {
+        await docRef.delete();
+      } catch (error) {
+        console.error(`Error deleting document with uid ${row.uid}:`, error);
+      }
     }
 
     console.log("Subscriptions updated to expired and removed from Firestore");
@@ -26,4 +32,4 @@ async function expireSubscriptions() {
 }
 
 // Schedule the function to run every day at 00:00
-cron.schedule("* * * * *", expireSubscriptions);
+cron.schedule("0 0 * * *", expireSubscriptions);

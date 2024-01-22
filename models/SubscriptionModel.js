@@ -50,7 +50,7 @@ exports.updateSubscriptionStatus = async (paystackRef, newStatus) => {
 exports.updateExpiredSubscriptions = async () => {
   try {
     const result = await db.query(
-      "UPDATE subscriptions SET status = 'expired' WHERE expiry_date < NOW()"
+      "UPDATE subscriptions SET status = 'expired' WHERE expiration_date < NOW()"
     );
 
     return result.affectedRows;
@@ -62,8 +62,9 @@ exports.updateExpiredSubscriptions = async () => {
 exports.getExpiredSubscriptions = async () => {
   try {
     const [rows] = await db.query(
-      "SELECT uid FROM subscriptions WHERE expiry_date < NOW()"
+      "SELECT uid FROM subscriptions WHERE expiration_date < NOW() AND status != 'expired'"
     );
+    console.log("Rows", rows);
     return rows;
   } catch (error) {
     throw new Error("Error getting expired subscriptions");
