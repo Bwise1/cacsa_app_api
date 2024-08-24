@@ -80,6 +80,7 @@ class AudioService {
     const audioCountByCategory =
       await this.audioModel.getAudioCountByCategory();
     console.log("Audio Count by Category:", audioCountByCategory);
+    return audioCountByCategory;
   }
 }
 

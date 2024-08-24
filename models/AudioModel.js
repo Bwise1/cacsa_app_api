@@ -80,9 +80,10 @@ class AudioModel {
   async getAudioCountByCategory() {
     try {
       const query = `
-        SELECT category_id, COUNT(*) AS count
-        FROM audio_files
-        GROUP BY category_id
+        SELECT c.id AS category_id, c.name AS category_name, COALESCE(COUNT(af.id), 0) AS count
+        FROM categories c
+        LEFT JOIN audio_files af ON c.id = af.category_id
+        GROUP BY c.id, c.name
       `;
       const [rows] = await db.query(query);
       return rows;

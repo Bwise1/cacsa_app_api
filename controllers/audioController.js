@@ -113,7 +113,8 @@ router.post("/thumb/upload", upload.single("thumbfile"), async (req, res) => {
 
 router.get("/stats/all", async (req, res) => {
   try {
-    await audioService.getAggregate();
+    const aduioStats = await audioService.getAggregate();
+    res.send({ status: "success", aduioStats });
   } catch (error) {
     console.error(error);
   }
