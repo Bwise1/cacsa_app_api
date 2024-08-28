@@ -41,7 +41,7 @@ class AudioModel {
 
   async getAllAudio() {
     try {
-      const query = "SELECT * FROM audio_files";
+      const query = "SELECT * FROM audio_files ORDER BY created_at DESC";
       const [rows] = await db.query(query);
       return rows;
     } catch (error) {
