@@ -90,6 +90,47 @@ class SubscriptionService {
       throw error;
     }
   }
+
+  async getAllPlans() {
+    try {
+      const response = await axios.get("https://api.paystack.co/plan", {
+        headers: {
+          Authorization: `Bearer ${this.secretKey}`,
+        },
+      });
+      const plans = response.data.data.map((plan) => ({
+        name: plan.name,
+        description: plan.description,
+        amount: plan.amount,
+        interval: plan.interval,
+        currency: plan.currency,
+        plan_code: plan.plan_code,
+      }));
+      return plans;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async subscribeToPlan(email, planCode) {
+    try {
+      const response = await axios.post(
+        "https://api.paystack.co/transaction/initialize",
+        {
+          email,
+          plan: planCode,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.secretKey}`,
+          },
+        }
+      );
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 
 module.exports = SubscriptionService;

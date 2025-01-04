@@ -76,4 +76,14 @@ router.post("/webhook-url", async (req, res) => {
   }
 });
 
+router.get("/plans", async (req, res) => {
+  try {
+    const plans = await subscriptionService.getAllPlans();
+    res.json(plans);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
