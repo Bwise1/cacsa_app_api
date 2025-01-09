@@ -68,6 +68,5 @@ if (require.main === module) {
   // Execute both tasks sequentially when called
   (async () => {
     await expireSubscriptions();
-    await deleteActiveSubscriptions();
   })();
 }
