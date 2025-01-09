@@ -32,5 +32,34 @@ async function expireSubscriptions() {
   }
 }
 
+async function deleteActiveSubscriptions() {
+  try {
+    const rows = await SubscriptionModel.getAllActiveSubscriptions();
+    console.log("Rows:", rows);
+
+    if (rows.length === 0) {
+      console.log("No expired subscriptions");
+      return;
+    }
+
+    for (const row of rows) {
+      const docRef = subscriptionsCollection.doc(row.uid);
+      try {
+        await docRef.delete();
+      } catch (error) {
+        console.error(`Error deleting document with uid ${row.uid}:`, error);
+      }
+    }
+
+    console.log("Subscriptions updated to expired and removed from Firestore");
+  } catch (error) {
+    console.error(
+      "Error updating subscriptions to expired and removing them from Firestore",
+      error
+    );
+  }
+}
+
 // Schedule the function to run every day at 00:00
 cron.schedule("* * * * *", expireSubscriptions);
+cron.schedule("* * * * *", deleteActiveSubscriptions);
