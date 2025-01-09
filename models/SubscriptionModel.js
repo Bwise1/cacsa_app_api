@@ -62,11 +62,12 @@ exports.updateExpiredSubscriptions = async () => {
 exports.getExpiredSubscriptions = async () => {
   try {
     const [rows] = await db.query(
-      "SELECT uid FROM subscriptions WHERE expiration_date < NOW() AND status != 'expired'"
+      "SELECT uid FROM subscriptions WHERE expiration_date < NOW() AND status = 'expired'"
     );
     console.log("Rows", rows);
     return rows;
   } catch (error) {
+    console.log("Error", error);
     throw new Error("Error getting expired subscriptions");
   }
 };

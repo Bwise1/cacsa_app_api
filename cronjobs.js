@@ -5,6 +5,7 @@ const SubscriptionModel = require("./models/SubscriptionModel");
 async function expireSubscriptions() {
   try {
     const rows = await SubscriptionModel.getExpiredSubscriptions();
+    console.log("Rows:", rows);
 
     if (rows.length === 0) {
       console.log("No expired subscriptions");
@@ -32,4 +33,4 @@ async function expireSubscriptions() {
 }
 
 // Schedule the function to run every day at 00:00
-cron.schedule("0 0 * * *", expireSubscriptions);
+cron.schedule("* * * * *", expireSubscriptions);

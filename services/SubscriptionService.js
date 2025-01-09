@@ -112,13 +112,14 @@ class SubscriptionService {
     }
   }
 
-  async subscribeToPlan(email, planCode) {
+  async initializePlanSubscription(email, planCode, amount) {
     try {
       const response = await axios.post(
         "https://api.paystack.co/transaction/initialize",
         {
           email,
           plan: planCode,
+          amount,
         },
         {
           headers: {

@@ -86,4 +86,19 @@ router.get("/plans", async (req, res) => {
   }
 });
 
+router.post("/init-plan-subscription", async (req, res) => {
+  try {
+    const { amount, email, plan } = req.body;
+    const response = await subscriptionService.initializePlanSubscription(
+      email,
+      plan,
+      amount
+    );
+    res.json(response);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
