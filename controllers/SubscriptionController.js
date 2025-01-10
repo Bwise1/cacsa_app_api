@@ -172,4 +172,22 @@ router.post("/init-plan-subscription", async (req, res) => {
   }
 });
 
+router.get("/callback", async (req, res) => {
+  try {
+    const { trxref, reference } = req.query;
+    const result = await subscriptionService.handleCallback(trxref, reference);
+
+    if (result.success) {
+      res.status(200).json(result);
+    } else {
+      res.status(400).json(result);
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+      data: null,
+    });
+  }
+});
 module.exports = router;

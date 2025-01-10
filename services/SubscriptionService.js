@@ -134,6 +134,36 @@ class SubscriptionService {
       throw error;
     }
   }
+
+  async handleCallback(trxref, reference) {
+    try {
+      // Verify the transaction
+      const verificationResult = await this.confirmSubscription(reference);
+
+      if (verificationResult.status === "success") {
+        // Update subscription status to active
+        await this.updateSubscriptionStatus(reference, "active");
+
+        return {
+          success: true,
+          message: "Payment verified successfully",
+          data: verificationResult,
+        };
+      }
+
+      return {
+        success: false,
+        message: "Payment verification failed",
+        data: verificationResult,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+        data: null,
+      };
+    }
+  }
 }
 
 module.exports = SubscriptionService;
