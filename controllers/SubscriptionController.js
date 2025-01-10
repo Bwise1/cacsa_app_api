@@ -80,9 +80,8 @@ router.get("/confirm/:reference", async (req, res) => {
 router.post("/webhook-url", async (req, res) => {
   console.log("Webhook called", req.body);
   try {
-    const reference = req.body.data.reference;
-
     if (req.body.event === "charge.success") {
+      const reference = req.body.data.reference;
       const transaction = await subscriptionService.updateSubscriptionStatus(
         reference,
         "active"
@@ -98,11 +97,18 @@ router.post("/webhook-url", async (req, res) => {
         { merge: true }
       );
 
-      // Redirect to backend success endpoint
-      return res.redirect(303, `/payment/success?reference=${reference}`);
+      // Redirect to the callback URL if provided, with success status
+      const callbackUrl = req.body.data.metadata?.callback_url;
+      if (callbackUrl) {
+        return res.redirect(
+          303,
+          `${callbackUrl}?status=success&reference=${reference}`
+        );
+      }
     }
 
     if (req.body.event === "subscription.cancelled") {
+      const reference = req.body.data.reference;
       const transaction = await subscriptionService.updateSubscriptionStatus(
         reference,
         "cancelled"
@@ -114,17 +120,30 @@ router.post("/webhook-url", async (req, res) => {
       const docRef = subscriptionsCollection.doc(uid);
       await docRef.set({ status: "cancelled" }, { merge: true });
 
-      return res.redirect(303, `/payment/cancel?reference=${reference}`);
+      // Redirect to the callback URL if provided, with cancelled status
+      const callbackUrl = req.body.data.metadata?.callback_url;
+      if (callbackUrl) {
+        return res.redirect(
+          303,
+          `${callbackUrl}?status=cancelled&reference=${reference}`
+        );
+      }
     }
 
     res.sendStatus(200);
   } catch (error) {
     console.error(error);
-    // Redirect to backend error endpoint
-    return res.redirect(
-      303,
-      `/payment/error?message=${encodeURIComponent(error.message)}`
-    );
+    // Redirect to callback URL with error if provided
+    const callbackUrl = req.body?.data?.metadata?.callback_url;
+    if (callbackUrl) {
+      return res.redirect(
+        303,
+        `${callbackUrl}?status=error&message=${encodeURIComponent(
+          error.message
+        )}`
+      );
+    }
+    res.status(500).json({ error: error.message });
   }
 });
 
