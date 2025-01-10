@@ -45,7 +45,7 @@ class SubscriptionService {
     }
   }
 
-  async initializeSubscription2(amount, email, uid) {
+  async initializeSubscription2(amount, email, uid, plan) {
     console.log("Initializing");
     try {
       const response = await axios.post(
@@ -53,6 +53,8 @@ class SubscriptionService {
         {
           amount,
           email,
+          callback_url: `${process.env.BACKEND_URL}/paystack/callback`,
+          plan: plan,
         },
         {
           headers: {
