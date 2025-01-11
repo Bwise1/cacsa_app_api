@@ -80,8 +80,12 @@ router.get("/confirm/:reference", async (req, res) => {
 router.post("/webhook-url", async (req, res) => {
   console.log("Webhook called", req.body);
   try {
-    if (req.body.event === "charge.success") {
-      const reference = req.body.data.reference;
+    const event = req.body.event;
+    const reference = req.body.data.reference;
+    const callbackUrl = req.body.data.metadata?.callback_url;
+
+    if (event === "charge.success") {
+      console.log("Charge success event");
       const transaction = await subscriptionService.updateSubscriptionStatus(
         reference,
         "active"
@@ -96,53 +100,18 @@ router.post("/webhook-url", async (req, res) => {
         { userID: uid, email, status: "active" },
         { merge: true }
       );
-
-      // Redirect to the callback URL if provided, with success status
-      const callbackUrl = req.body.data.metadata?.callback_url;
-      if (callbackUrl) {
-        return res.redirect(
-          303,
-          `${callbackUrl}?status=success&reference=${reference}`
-        );
-      }
     }
 
-    if (req.body.event === "subscription.cancelled") {
-      const reference = req.body.data.reference;
+    if (event === "subscription.cancelled") {
       const transaction = await subscriptionService.updateSubscriptionStatus(
         reference,
         "cancelled"
       );
-
-      const { uid } = transaction;
-
-      // Update Firestore status to cancelled
-      const docRef = subscriptionsCollection.doc(uid);
-      await docRef.set({ status: "cancelled" }, { merge: true });
-
-      // Redirect to the callback URL if provided, with cancelled status
-      const callbackUrl = req.body.data.metadata?.callback_url;
-      if (callbackUrl) {
-        return res.redirect(
-          303,
-          `${callbackUrl}?status=cancelled&reference=${reference}`
-        );
-      }
     }
 
     res.sendStatus(200);
   } catch (error) {
     console.error(error);
-    // Redirect to callback URL with error if provided
-    const callbackUrl = req.body?.data?.metadata?.callback_url;
-    if (callbackUrl) {
-      return res.redirect(
-        303,
-        `${callbackUrl}?status=error&message=${encodeURIComponent(
-          error.message
-        )}`
-      );
-    }
     res.status(500).json({ error: error.message });
   }
 });
@@ -176,18 +145,16 @@ router.get("/callback", async (req, res) => {
   try {
     const { trxref, reference } = req.query;
     const result = await subscriptionService.handleCallback(trxref, reference);
-
     if (result.success) {
-      res.status(200).json(result);
+      // Redirect to success page
+      return res.redirect("/payment/success");
     } else {
-      res.status(400).json(result);
+      // Redirect to failure page
+      return res.redirect("/payment/failed");
     }
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-      data: null,
-    });
+    // Redirect to error page
+    return res.redirect("/payment/error");
   }
 });
 module.exports = router;

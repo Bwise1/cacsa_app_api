@@ -53,8 +53,12 @@ class SubscriptionService {
         {
           amount,
           email,
-          callback_url: `${process.env.BACKEND_URL}/paystack/callback`,
           plan: plan,
+          callback_url: `${process.env.BACKEND_URL}/paystack/callback`,
+          uid,
+          metadata: {
+            cancel_action: `${process.env.BACKEND_URL}/payment/cancel`,
+          },
         },
         {
           headers: {
