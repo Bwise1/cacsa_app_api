@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const SubscriptionService = require("../services/SubscriptionService");
 const SubscriptionModel = require("../models/SubscriptionModel");
+const crypto = require("crypto");
+
 const subscriptionService = new SubscriptionService(
   process.env.PAYSTACK_SECRET_KEY,
   SubscriptionModel
@@ -79,6 +81,20 @@ router.get("/confirm/:reference", async (req, res) => {
 
 router.post("/webhook-url", async (req, res) => {
   console.log("Webhook called", req.body);
+  // Extract Paystack signature from headers
+  const paystackSignature = req.headers["x-paystack-signature"];
+
+  // Compute the HMAC SHA512 hash of the request body using your Paystack secret key
+  const hash = crypto
+    .createHmac("sha512", process.env.PAYSTACK_SECRET_KEY)
+    .update(JSON.stringify(req.body))
+    .digest("hex");
+
+  // Verify that the computed hash matches the signature from the headers
+  if (hash !== paystackSignature) {
+    console.error("Invalid Paystack signature");
+    return res.status(400).send("Invalid signature");
+  }
   try {
     const event = req.body.event;
     const reference = req.body.data.reference;
