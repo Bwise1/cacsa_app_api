@@ -2,7 +2,6 @@ const express = require("express");
 const router = express.Router();
 const SubscriptionService = require("../services/SubscriptionService");
 const SubscriptionModel = require("../models/SubscriptionModel");
-const crypto = require("crypto");
 
 const subscriptionService = new SubscriptionService(
   process.env.PAYSTACK_SECRET_KEY,
@@ -52,56 +51,11 @@ router.get("/confirm/:reference", async (req, res) => {
   }
 });
 
-// router.post("/webhook-url", async (req, res) => {
-//   console.log("Webhook called", req.body);
-//   try {
-//     if (req.body.event === "charge.success") {
-//       const reference = req.body.data.reference;
-//       const transaction = await subscriptionService.updateSubscriptionStatus(
-//         reference,
-//         "active"
-//       );
-
-//       // Get the uid and email from the transaction
-//       const { uid, email } = transaction;
-
-//       // Write the uid, email, and status to Firestore
-//       const docRef = subscriptionsCollection.doc(uid);
-//       await docRef.set(
-//         { userID: uid, email, status: "active" },
-//         { merge: true }
-//       );
-//     }
-//     res.sendStatus(200);
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ error: error.message });
-//   }
-// });
-
 router.post("/webhook-url", async (req, res) => {
   console.log("Webhook called", req.body);
-  // Extract Paystack signature from headers
-  const paystackSignature = req.headers["x-paystack-signature"];
-
-  // Compute the HMAC SHA512 hash of the request body using your Paystack secret key
-  const hash = crypto
-    .createHmac("sha512", process.env.PAYSTACK_SECRET_KEY)
-    .update(JSON.stringify(req.body))
-    .digest("hex");
-
-  // Verify that the computed hash matches the signature from the headers
-  if (hash !== paystackSignature) {
-    console.error("Invalid Paystack signature");
-    return res.status(400).send("Invalid signature");
-  }
   try {
-    const event = req.body.event;
-    const reference = req.body.data.reference;
-    const callbackUrl = req.body.data.metadata?.callback_url;
-
-    if (event === "charge.success") {
-      console.log("Charge success event");
+    if (req.body.event === "charge.success") {
+      const reference = req.body.data.reference;
       const transaction = await subscriptionService.updateSubscriptionStatus(
         reference,
         "active"
@@ -117,20 +71,65 @@ router.post("/webhook-url", async (req, res) => {
         { merge: true }
       );
     }
-
-    if (event === "subscription.cancelled") {
-      const transaction = await subscriptionService.updateSubscriptionStatus(
-        reference,
-        "cancelled"
-      );
-    }
-
     res.sendStatus(200);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message });
   }
 });
+
+// router.post("/webhook-url", async (req, res) => {
+//   console.log("Webhook called", req.body);
+//   // Extract Paystack signature from headers
+//   const paystackSignature = req.headers["x-paystack-signature"];
+
+//   // Compute the HMAC SHA512 hash of the request body using your Paystack secret key
+//   const hash = crypto
+//     .createHmac("sha512", process.env.PAYSTACK_SECRET_KEY)
+//     .update(JSON.stringify(req.body))
+//     .digest("hex");
+
+//   // Verify that the computed hash matches the signature from the headers
+//   if (hash !== paystackSignature) {
+//     console.error("Invalid Paystack signature");
+//     return res.status(400).send("Invalid signature");
+//   }
+//   try {
+//     const event = req.body.event;
+//     const reference = req.body.data.reference;
+//     const callbackUrl = req.body.data.metadata?.callback_url;
+
+//     if (event === "charge.success") {
+//       console.log("Charge success event");
+//       const transaction = await subscriptionService.updateSubscriptionStatus(
+//         reference,
+//         "active"
+//       );
+
+//       // Get the uid and email from the transaction
+//       const { uid, email } = transaction;
+
+//       // Write the uid, email, and status to Firestore
+//       const docRef = subscriptionsCollection.doc(uid);
+//       await docRef.set(
+//         { userID: uid, email, status: "active" },
+//         { merge: true }
+//       );
+//     }
+
+//     if (event === "subscription.cancelled") {
+//       const transaction = await subscriptionService.updateSubscriptionStatus(
+//         reference,
+//         "cancelled"
+//       );
+//     }
+
+//     res.sendStatus(200);
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ error: error.message });
+//   }
+// });
 
 router.get("/plans", async (req, res) => {
   try {
