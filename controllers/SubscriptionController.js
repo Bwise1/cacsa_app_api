@@ -143,11 +143,11 @@ router.get("/plans", async (req, res) => {
 
 router.post("/init-plan-subscription", async (req, res) => {
   try {
-    const { amount, email, plan } = req.body;
+    const { email, planId, uid } = req.body;
     const response = await subscriptionService.initializePlanSubscription(
       email,
-      plan,
-      amount
+      planId,
+      uid
     );
     res.json(response);
   } catch (error) {

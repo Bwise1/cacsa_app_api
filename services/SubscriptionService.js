@@ -1,4 +1,5 @@
 const axios = require("axios");
+const SubscriptionPlanModel = require("../models/SubscriptionPlanModel");
 
 class SubscriptionService {
   constructor(secretKey, subscriptionModel) {
@@ -99,33 +100,37 @@ class SubscriptionService {
 
   async getAllPlans() {
     try {
-      const response = await axios.get("https://api.paystack.co/plan", {
-        headers: {
-          Authorization: `Bearer ${this.secretKey}`,
-        },
-      });
-      const plans = response.data.data.map((plan) => ({
-        name: plan.name,
-        description: plan.description,
-        amount: plan.amount,
-        interval: plan.interval,
-        currency: plan.currency,
-        plan_code: plan.plan_code,
-      }));
+      // Fetch plans from local database instead of Paystack
+      const plans = await SubscriptionPlanModel.getAllPlans();
       return plans;
     } catch (error) {
       throw error;
     }
   }
 
-  async initializePlanSubscription(email, planCode, amount) {
+  async initializePlanSubscription(email, planId, uid) {
     try {
+      // Get plan from database
+      const plan = await SubscriptionPlanModel.getPlanById(planId);
+
+      if (!plan) {
+        throw new Error("Plan not found");
+      }
+
+      // Convert amount from Naira to kobo (multiply by 100)
+      const amountInKobo = plan.amount * 100;
+
       const response = await axios.post(
         "https://api.paystack.co/transaction/initialize",
         {
           email,
-          plan: planCode,
-          amount,
+          amount: amountInKobo,
+          callback_url: `${process.env.BACKEND_URL}/paystack/callback`,
+          metadata: {
+            cancel_action: `${process.env.BACKEND_URL}/payment/cancel`,
+            plan_id: planId,
+            plan_name: plan.name,
+          },
         },
         {
           headers: {
@@ -133,6 +138,20 @@ class SubscriptionService {
           },
         }
       );
+
+      // Calculate expiration date (one year from the current date)
+      const expirationDate = new Date();
+      expirationDate.setFullYear(expirationDate.getFullYear() + 1);
+
+      // Add the new subscription to the database
+      await this.subscriptionModel.addSubscription(
+        uid,
+        amountInKobo,
+        email,
+        response.data.data.reference,
+        expirationDate
+      );
+
       return response.data;
     } catch (error) {
       throw error;
