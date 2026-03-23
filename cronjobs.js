@@ -1,47 +1,67 @@
 if (require.main === module) {
-  const cron = require("node-cron");
   const { subscriptionsCollection } = require("./utils/firebase/index");
   const SubscriptionModel = require("./models/SubscriptionModel");
+  const FamilyModel = require("./models/FamilyModel");
+  const db = require("./db/db");
+  const {
+    syncSubscriptionToFirestore,
+  } = require("./services/subscriptionFirestoreSyncService");
 
   async function expireSubscriptions() {
     try {
-      const rows = await SubscriptionModel.getExpiredSubscriptions();
-      console.log("Rows:", rows);
+      const rows = await SubscriptionModel.getExpiredSubscriptionRows();
+      console.log("Expired subscription rows:", rows);
 
       if (rows.length === 0) {
         console.log("No expired subscriptions");
         return;
+      }
+
+      const uidsToSync = new Set();
+
+      for (const row of rows) {
+        const fam = await FamilyModel.getFamilyBySubscriptionId(row.id);
+        if (fam) {
+          await db.query(
+            `UPDATE family_groups SET status = 'inactive' WHERE id = ?`,
+            [fam.id]
+          );
+          const memberUids = await FamilyModel.getFamilyMemberUids(fam.id);
+          for (const u of [...memberUids, fam.owner_uid]) {
+            uidsToSync.add(u);
+          }
+        } else {
+          uidsToSync.add(row.uid);
+        }
       }
 
       await SubscriptionModel.updateExpiredSubscriptions();
 
-      for (const row of rows) {
-        const docRef = subscriptionsCollection.doc(row.uid);
+      for (const uid of uidsToSync) {
         try {
-          await docRef.delete();
+          await syncSubscriptionToFirestore(uid);
         } catch (error) {
-          console.error(`Error deleting document with uid ${row.uid}:`, error);
+          console.error(`expireSubscriptions sync ${uid}:`, error);
         }
       }
 
-      console.log(
-        "Subscriptions updated to expired and removed from Firestore"
-      );
+      console.log("Subscriptions updated to expired; Firestore synced");
     } catch (error) {
       console.error(
-        "Error updating subscriptions to expired and removing them from Firestore",
+        "Error updating subscriptions to expired and syncing Firestore",
         error
       );
     }
   }
 
+  /** Destructive: removes Firestore subscription docs for users still active in MySQL (maintenance). */
   async function deleteActiveSubscriptions() {
     try {
       const rows = await SubscriptionModel.getAllActiveSubscriptions();
-      console.log("Rows:", rows);
+      console.log("Rows", rows);
 
       if (rows.length === 0) {
-        console.log("No expired subscriptions");
+        console.log("No active subscriptions");
         return;
       }
 
@@ -54,18 +74,15 @@ if (require.main === module) {
         }
       }
 
-      console.log(
-        "Subscriptions updated to expired and removed from Firestore"
-      );
+      console.log("Active subscription Firestore docs deleted");
     } catch (error) {
       console.error(
-        "Error updating subscriptions to expired and removing them from Firestore",
+        "Error deleting active subscription documents from Firestore",
         error
       );
     }
   }
 
-  // Execute both tasks sequentially when called
   (async () => {
     await expireSubscriptions();
   })();

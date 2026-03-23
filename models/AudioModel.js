@@ -41,7 +41,17 @@ class AudioModel {
 
   async getAllAudio() {
     try {
-      const query = "SELECT * FROM audio_files ORDER BY created_at DESC";
+      const query = `
+        SELECT af.*, COALESCE(pc.c, 0) AS play_count
+        FROM audio_files af
+        LEFT JOIN (
+          SELECT audio_id, COUNT(*) AS c
+          FROM audio_listen_events
+          WHERE event_type = 'play_start'
+          GROUP BY audio_id
+        ) pc ON pc.audio_id = af.id
+        ORDER BY af.created_at DESC
+      `;
       const [rows] = await db.query(query);
       return rows;
     } catch (error) {
@@ -62,6 +72,57 @@ class AudioModel {
       return rows[0];
     } catch (error) {
       console.error("Error fetching audio by ID:", error);
+      throw error;
+    }
+  }
+
+  async updateAudio(
+    audioId,
+    title,
+    description,
+    artist,
+    date,
+    category_id,
+    audio_url,
+    thumbnail_url,
+    duration
+  ) {
+    try {
+      const [result] = await db.query(
+        `UPDATE audio_files
+         SET title = ?, description = ?, artist = ?, date = ?, category_id = ?,
+             audio_url = ?, thumbnail_url = ?, duration = ?
+         WHERE id = ?`,
+        [
+          title,
+          description,
+          artist,
+          date,
+          category_id,
+          audio_url,
+          thumbnail_url,
+          duration,
+          audioId,
+        ]
+      );
+      return result.affectedRows > 0;
+    } catch (error) {
+      console.error("Error updating audio:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * @returns {Promise<boolean>} true if a row was deleted
+   */
+  async deleteAudio(audioId) {
+    try {
+      const [result] = await db.query("DELETE FROM audio_files WHERE id = ?", [
+        audioId,
+      ]);
+      return result.affectedRows > 0;
+    } catch (error) {
+      console.error("Error deleting audio:", error);
       throw error;
     }
   }

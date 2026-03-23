@@ -9,6 +9,14 @@ exports.getAllCategories = async () => {
   }
 };
 
+exports.getCategoryById = async (categoryId) => {
+  const [rows] = await db.query(
+    "SELECT * FROM categories WHERE id = ? LIMIT 1",
+    [categoryId]
+  );
+  return rows[0] || null;
+};
+
 exports.addCategory = async (categoryName) => {
   try {
     const result = await db.query("INSERT INTO categories (name) VALUES (?)", [

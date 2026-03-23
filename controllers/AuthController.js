@@ -30,4 +30,14 @@ router.post("/login", async (req, res) => {
   }
 });
 
+router.post("/refresh", async (req, res) => {
+  try {
+    const { refreshToken } = req.body || {};
+    const out = await authService.refreshAccessToken(refreshToken);
+    res.json({ message: "OK", data: out });
+  } catch (error) {
+    res.status(401).json({ message: error.message || "Refresh failed" });
+  }
+});
+
 module.exports = router;

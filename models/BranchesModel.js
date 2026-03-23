@@ -1,11 +1,37 @@
 const db = require("../db/db");
 
 class Branch {
-  // Get all branches
+  // Get all branches (serialize POINT so JSON responses are stable for the admin SPA).
   static async getAllBranches() {
     try {
-      const [branches] = await db.query("SELECT * FROM branches");
-      return branches;
+      const [rows] = await db.query(`
+        SELECT
+          id,
+          name,
+          state_id,
+          address,
+          type,
+          website,
+          phone,
+          is_HQ,
+          ST_X(location) AS location_x,
+          ST_Y(location) AS location_y
+        FROM branches
+      `);
+      return rows.map((b) => ({
+        id: b.id,
+        name: b.name,
+        state_id: b.state_id,
+        address: b.address,
+        type: b.type,
+        website: b.website,
+        phone: b.phone,
+        is_HQ: b.is_HQ,
+        location:
+          b.location_x != null && b.location_y != null
+            ? { x: Number(b.location_x), y: Number(b.location_y) }
+            : null,
+      }));
     } catch (error) {
       throw new Error("Error fetching branches");
     }

@@ -1,12 +1,11 @@
 const jwt = require("jsonwebtoken");
-const express = require("express");
 
-require("dotenv").config(); // Load environment variables from .env
+require("dotenv").config();
 
 const authMiddleware = (req, res, next) => {
-  const token = req.header("Authorization");
+  const authHeader = req.header("Authorization");
 
-  if (!token) {
+  if (!authHeader) {
     return res.status(401).json({
       status: "failed",
       message: "Authentication failed. Token not provided.",
@@ -14,11 +13,26 @@ const authMiddleware = (req, res, next) => {
   }
 
   try {
-    const token = req.headers.authorization.split(" ")[1];
+    const raw = authHeader.split(" ")[1];
+    if (!raw) {
+      return res.status(401).json({
+        status: "failed",
+        message: "Authentication failed. Malformed Authorization header.",
+      });
+    }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET); // Use process.env to access the secret key
-    req.user = decoded.user;
-
+    const decoded = jwt.verify(raw, process.env.JWT_SECRET);
+    if (decoded.tokenType === "refresh") {
+      return res.status(401).json({
+        status: "failed",
+        message: "Use an access token, not a refresh token.",
+      });
+    }
+    req.user = {
+      id: decoded.id,
+      role: decoded.role,
+      permissions: Array.isArray(decoded.permissions) ? decoded.permissions : [],
+    };
     next();
   } catch (error) {
     console.error(error);

@@ -16,21 +16,51 @@ class UserModel {
   }
 
   async createUser(user) {
-    // Check if the username or email already exists
-    if (await this.doesUsernameExist(username)) {
+    if (await this.doesUsernameExist(user.username)) {
       throw new Error("Username already exists.");
     }
 
-    if (await this.doesEmailExist(email)) {
+    if (await this.doesEmailExist(user.email)) {
       throw new Error("Email already exists.");
     }
 
     const query =
-      "INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)";
-    const values = [user.username, user.email, user.password, user.role];
+      "INSERT INTO users (username, email, password, role, role_id) VALUES (?, ?, ?, ?, ?)";
+    const values = [
+      user.username,
+      user.email,
+      user.password,
+      user.role ?? "viewer",
+      user.role_id ?? null,
+    ];
 
     const [result] = await db.query(query, values);
-    return result.insertId; // ID of the created user
+    return result.insertId;
+  }
+
+  async countAdminUsers() {
+    const [rows] = await db.query("SELECT COUNT(*) AS c FROM users");
+    return Number(rows[0]?.c ?? 0);
+  }
+
+
+  async listAdminUsers() {
+    const [rows] = await db.query(
+      `SELECT u.id, u.username, u.email, u.role, u.role_id,
+              r.slug AS role_slug, r.name AS role_name
+       FROM users u
+       LEFT JOIN roles r ON r.id = u.role_id
+       ORDER BY u.id DESC`
+    );
+    return rows;
+  }
+
+  async updateUserRole(userId, roleId, roleSlug) {
+    const [result] = await db.query(
+      "UPDATE users SET role_id = ?, role = ? WHERE id = ?",
+      [roleId, roleSlug, userId]
+    );
+    return result.affectedRows > 0;
   }
 
   async getAllUsers() {
@@ -40,25 +70,47 @@ class UserModel {
   }
 
   async getUserById(id) {
-    const query = "SELECT * FROM users WHERE id = ?";
+    const query = `
+      SELECT u.*, r.slug AS role_slug
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id
+      WHERE u.id = ?
+    `;
     const [rows] = await db.query(query, [id]);
-    return rows[0]; // Return the first row (user) or null if not found
+    return rows[0];
   }
 
   async getUserByUsername(username) {
-    const query = "SELECT * FROM users WHERE username = ?";
+    const query = `
+      SELECT u.*, r.slug AS role_slug
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id
+      WHERE u.username = ?
+    `;
     const [rows] = await db.query(query, [username]);
-    return rows[0]; // Return the first row (user) or null if not found
+    return rows[0];
+  }
+
+  async getUserByEmail(email) {
+    const query = `
+      SELECT u.*, r.slug AS role_slug
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id
+      WHERE u.email = ?
+    `;
+    const [rows] = await db.query(query, [email]);
+    return rows[0];
   }
 
   async updateUser(id, updatedUser) {
     const query =
-      "UPDATE users SET username = ?, email = ?, password = ?, role = ? WHERE id = ?";
+      "UPDATE users SET username = ?, email = ?, password = ?, role = ?, role_id = ? WHERE id = ?";
     const values = [
       updatedUser.username,
       updatedUser.email,
       updatedUser.password,
       updatedUser.role,
+      updatedUser.role_id ?? null,
       id,
     ];
 
@@ -66,7 +118,7 @@ class UserModel {
     if (result.affectedRows > 0) {
       return true;
     }
-    return false; // User not found or not updated
+    return false;
   }
 
   async deleteUser(id) {
@@ -75,7 +127,7 @@ class UserModel {
     if (result.affectedRows > 0) {
       return true;
     }
-    return false; // User not found or not deleted
+    return false;
   }
 }
 

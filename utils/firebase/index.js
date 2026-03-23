@@ -11,6 +11,7 @@ const db = admin.firestore();
 const subscriptionsCollection = db.collection("subscriptions");
 
 module.exports = {
+  admin,
   db,
   subscriptionsCollection,
 };

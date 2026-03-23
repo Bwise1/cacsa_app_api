@@ -1,0 +1,14 @@
+{
+  "watch": ["."],
+  "ext": "js,json",
+  "ignore": [
+    "node_modules",
+    ".git",
+    "package-lock.json",
+    "yarn.lock",
+    "*.test.js",
+    "logs",
+    "uploads"
+  ],
+  "delay": 500
+}

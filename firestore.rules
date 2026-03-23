@@ -1,0 +1,55 @@
+rules_version = '2';
+// Deploy with: firebase deploy --only firestore:rules
+// Subscription documents are written only by the backend (Admin SDK).
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /subscriptions/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /ads/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /adverts/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /yt_stream/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /broadCastNotifications/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /students_code/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /user/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Fallback for collections not listed above. Rules are OR'd — exclude
+    // `subscriptions` so only the explicit match /subscriptions/{userId} applies.
+    match /{document=**} {
+      allow read, write: if request.auth != null
+        && !request.path.matches('.*/documents/subscriptions/.*');
+    }
+  }
+}
+

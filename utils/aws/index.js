@@ -5,6 +5,7 @@ const {
   S3Client,
   PutObjectCommand,
   ListBucketsCommand,
+  DeleteObjectCommand,
 } = require("@aws-sdk/client-s3");
 
 const region = "eu-north-1";
@@ -116,8 +117,41 @@ const listBuckets = async () => {
   }
 };
 
+/**
+ * Public object URL from uploadFile: https://{bucket}.s3.{region}.amazonaws.com/{encodedKey}
+ * @returns {string|null} S3 object key or null if URL is not for this bucket/region
+ */
+function keyFromPublicUrl(url, bucketName) {
+  if (!url || typeof url !== "string") return null;
+  try {
+    const u = new URL(url.trim());
+    const expectedHost = `${bucketName}.s3.${region}.amazonaws.com`;
+    if (u.hostname !== expectedHost) return null;
+    const raw = u.pathname.replace(/^\/+/, "");
+    return decodeURIComponent(raw.replace(/\+/g, " ")) || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Delete one object by public URL (same format as uploadFile returns).
+ * No-op if URL does not match this bucket.
+ */
+const deleteObjectFromUrl = async (url, bucketName) => {
+  const key = keyFromPublicUrl(url, bucketName);
+  if (!key) return;
+  const command = new DeleteObjectCommand({
+    Bucket: bucketName,
+    Key: key,
+  });
+  await s3_v3.send(command);
+};
+
 module.exports = {
   upload,
   uploadFile,
   listBuckets,
+  keyFromPublicUrl,
+  deleteObjectFromUrl,
 };

@@ -1,5 +1,7 @@
 const axios = require("axios");
 const SubscriptionPlanModel = require("../models/SubscriptionPlanModel");
+const { verifyStudentCode } = require("../utils/studentCodeVerification");
+const { activateSubscriptionSideEffects } = require("./chargeActivationService");
 
 class SubscriptionService {
   constructor(secretKey, subscriptionModel) {
@@ -39,51 +41,110 @@ class SubscriptionService {
           },
         }
       );
-      const { status, amount } = response.data.data;
+      const data = response.data.data;
+      const { status, amount } = data;
+
+      if (status === "success") {
+        await this.subscriptionModel.updateSubscriptionStatus(reference, "active");
+        await activateSubscriptionSideEffects(reference, data);
+      }
+
       return { status, amount };
     } catch (error) {
       throw error;
     }
   }
 
-  async initializeSubscription2(amount, email, uid, plan) {
-    console.log("Initializing");
-    try {
-      const response = await axios.post(
-        "https://api.paystack.co/transaction/initialize",
-        {
-          amount,
-          email,
-          // plan: plan,
-          callback_url: `${process.env.BACKEND_URL}/paystack/callback`,
-          uid,
-          metadata: {
-            cancel_action: `${process.env.BACKEND_URL}/payment/cancel`,
-          },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${this.secretKey}`,
-          },
-        }
-      );
-      // Calculate expiration date (one year from the current date)
-      const expirationDate = new Date();
-      expirationDate.setFullYear(expirationDate.getFullYear() + 1);
+  /**
+   * Mobile app init: amount may be omitted when plan_id / plan resolves from DB (server-priced).
+   * studentCode required for individual_student and family_student plans.
+   */
+  async initializeSubscription2(amount, email, uid, plan, planId, studentCode) {
+    const expirationDate = new Date();
+    expirationDate.setFullYear(expirationDate.getFullYear() + 1);
 
-      // Add the new subscription to the database
-      const subscriptionId = await this.subscriptionModel.addSubscription(
-        uid,
-        amount,
-        email,
-        response.data.data.reference,
-        expirationDate
-      );
-
-      return response.data;
-    } catch (error) {
-      throw error;
+    let planRow = null;
+    if (planId != null && planId !== "") {
+      planRow = await SubscriptionPlanModel.getPlanById(Number(planId));
     }
+    if (!planRow && plan) {
+      planRow = await SubscriptionPlanModel.getPlanByPlanCode(String(plan));
+    }
+    if (!planRow && plan && /^\d+$/.test(String(plan))) {
+      planRow = await SubscriptionPlanModel.getPlanById(Number(plan));
+    }
+
+    let amountKobo;
+    const metadata = {
+      cancel_action: `${process.env.BACKEND_URL}/payment/cancel`,
+      uid: String(uid),
+      email: String(email),
+    };
+
+    if (planRow) {
+      const amountNaira = Number(planRow.amount);
+      amountKobo = Math.round(amountNaira * 100);
+      const kind = planRow.plan_kind || "individual";
+
+      if (kind === "family_student" || kind === "individual_student") {
+        const ok = await verifyStudentCode(planRow.plan_code, studentCode);
+        if (!ok) {
+          const err = new Error("Invalid student verification code");
+          err.status = 400;
+          throw err;
+        }
+      }
+
+      if (kind === "family_regular" || kind === "family_student") {
+        const tier = kind === "family_student" ? "student_family" : "standard_family";
+        Object.assign(metadata, {
+          plan_id: String(planRow.id),
+          plan_code: planRow.plan_code || "",
+          plan_kind: kind,
+          plan_tier: tier,
+          plan_type: "family",
+        });
+      } else {
+        Object.assign(metadata, {
+          plan_id: String(planRow.id),
+          plan_code: planRow.plan_code || String(plan),
+          plan_kind: kind,
+          plan_type: "individual",
+        });
+      }
+    } else {
+      amountKobo = Math.round(Number(amount));
+      Object.assign(metadata, {
+        plan_code: plan ? String(plan) : "",
+        plan_kind: "individual",
+        plan_type: "individual",
+      });
+    }
+
+    const response = await axios.post(
+      "https://api.paystack.co/transaction/initialize",
+      {
+        amount: amountKobo,
+        email,
+        callback_url: `${process.env.BACKEND_URL}/paystack/callback`,
+        metadata,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${this.secretKey}`,
+        },
+      }
+    );
+
+    await this.subscriptionModel.addSubscription(
+      uid,
+      amountKobo,
+      email,
+      response.data.data.reference,
+      expirationDate
+    );
+
+    return response.data;
   }
 
   async updateSubscriptionStatus(reference, newStatus) {
@@ -100,7 +161,6 @@ class SubscriptionService {
 
   async getAllPlans() {
     try {
-      // Fetch plans from local database instead of Paystack
       const plans = await SubscriptionPlanModel.getAllPlans();
       return plans;
     } catch (error) {
@@ -110,15 +170,13 @@ class SubscriptionService {
 
   async initializePlanSubscription(email, planId, uid) {
     try {
-      // Get plan from database
       const plan = await SubscriptionPlanModel.getPlanById(planId);
 
       if (!plan) {
         throw new Error("Plan not found");
       }
 
-      // Convert amount from Naira to kobo (multiply by 100)
-      const amountInKobo = plan.amount * 100;
+      const amountInKobo = Math.round(Number(plan.amount) * 100);
 
       const response = await axios.post(
         "https://api.paystack.co/transaction/initialize",
@@ -139,11 +197,9 @@ class SubscriptionService {
         }
       );
 
-      // Calculate expiration date (one year from the current date)
       const expirationDate = new Date();
       expirationDate.setFullYear(expirationDate.getFullYear() + 1);
 
-      // Add the new subscription to the database
       await this.subscriptionModel.addSubscription(
         uid,
         amountInKobo,
@@ -160,13 +216,9 @@ class SubscriptionService {
 
   async handleCallback(trxref, reference) {
     try {
-      // Verify the transaction
       const verificationResult = await this.confirmSubscription(reference);
 
       if (verificationResult.status === "success") {
-        // Update subscription status to active
-        await this.updateSubscriptionStatus(reference, "active");
-
         return {
           success: true,
           message: "Payment verified successfully",

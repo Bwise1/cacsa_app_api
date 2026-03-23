@@ -3,9 +3,14 @@ const authController = require("../controllers/AuthController");
 const categoryController = require("../controllers/categoryController");
 const audioController = require("../controllers/audioController");
 const subscriptionController = require("../controllers/SubscriptionController");
+const familyController = require("../controllers/FamilyController");
 const statesController = require("../controllers/StatesController");
 const branchesController = require("../controllers/BranchController");
 const userController = require("../controllers/userController");
+const adminController = require("../controllers/AdminController");
+const adsController = require("../controllers/AdsController");
+const referralsController = require("../controllers/ReferralsController");
+const devotionalController = require("../controllers/DevotionalController");
 
 const router = Router();
 
@@ -24,6 +29,8 @@ router.use("/audio", audioController);
 //subscription route
 router.use("/paystack", subscriptionController);
 
+router.use("/family", familyController);
+
 //states route
 router.use("/state", statesController);
 
@@ -32,6 +39,12 @@ router.use("/branch", branchesController);
 
 //user route
 router.use("/user", userController);
+
+router.use("/ads", adsController);
+router.use("/referrals", referralsController);
+router.use("/devotionals", devotionalController);
+
+router.use("/admin", adminController);
 
 // app.post("/paystack/initialize-transaction", async (req, res) => {
 //   try {
