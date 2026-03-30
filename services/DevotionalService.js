@@ -1,5 +1,12 @@
 const DevotionalModel = require("../models/DevotionalModel");
 const { db } = require("../utils/firebase");
+const {
+  computeStatsAfterDailyCompletion,
+} = require("./devotionalStreakUtils");
+const {
+  rankFromYearPoints,
+  rankFromMonthlyPoints,
+} = require("./devotionalRankUtils");
 
 const DAILY_POINTS = 10;
 
@@ -33,12 +40,6 @@ function formatInTimeZone(now, timeZone) {
   return fmt.format(now);
 }
 
-function getYesterday(yyyyMmDd) {
-  const d = new Date(`${yyyyMmDd}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - 1);
-  return d.toISOString().slice(0, 10);
-}
-
 class DevotionalService {
   constructor() {
     this.model = new DevotionalModel();
@@ -69,26 +70,42 @@ class DevotionalService {
 
   async getProgress(firebaseUid) {
     const settings = await this.model.getSettings();
+    // Streak/points here are last persisted values; current_streak_days is only revised on completion (not when a day is missed).
     const stats = await this.model.getStats(firebaseUid);
     const nowYmd = formatInTimeZone(new Date(), settings.server_timezone);
     const monthKey = nowYmd.slice(0, 7);
+    const yyyy = Number(nowYmd.slice(0, 4));
     const monthlyPoints = await this.model.getMonthlyPoints(firebaseUid, monthKey);
+    // Competitive points + rank: calendar year in server TZ (Jan 1 starts fresh).
+    const totalPoints = await this.model.getYearPoints(firebaseUid, yyyy);
+    const { rank, rankColorHex } = rankFromYearPoints(totalPoints);
     return {
       currentStreakDays: Number(stats?.current_streak_days || 0),
       longestStreakDays: Number(stats?.longest_streak_days || 0),
-      totalPoints: Number(stats?.total_points || 0),
+      totalPoints,
       monthPoints: monthlyPoints,
-      rank: "Labourer",
+      rank,
+      rankColorHex,
       minReadSeconds: Number(settings.min_read_seconds || 120),
       minScrollPercent: Number(settings.min_scroll_percent || 70),
       serverTimezone: settings.server_timezone || "Africa/Lagos",
     };
   }
 
-  async getAdminLeaderboard({ limit = 20 }) {
-    const rows = await this.model.getAdminLeaderboard({ limit });
+  async getAdminLeaderboard({ limit = 20, timeframe = "this_year" }) {
+    const tf = timeframe === "this_month" ? "this_month" : "this_year";
+    const rows =
+      tf === "this_month"
+        ? await this._getAdminLeaderboardThisMonth({ limit })
+        : await this._getAdminLeaderboardThisYear({ limit });
+    const rankFn =
+      tf === "this_month"
+        ? rankFromMonthlyPoints
+        : rankFromYearPoints;
     const users = await Promise.all(
       rows.map(async (row) => {
+        const pts = Number(row.total_points || 0);
+        const { rank, rankColorHex } = rankFn(pts);
         try {
           const snap = await db.collection("users").doc(row.firebase_uid).get();
           const data = snap.exists ? snap.data() : null;
@@ -102,10 +119,12 @@ class DevotionalService {
             lastName,
             currentStreakDays: Number(row.current_streak_days || 0),
             longestStreakDays: Number(row.longest_streak_days || 0),
-            totalPoints: Number(row.total_points || 0),
+            totalPoints: pts,
             lastCompletedDate: row.last_completed_date
               ? String(row.last_completed_date).slice(0, 10)
               : null,
+            rank,
+            rankColorHex,
           };
         } catch (_) {
           return {
@@ -115,15 +134,31 @@ class DevotionalService {
             lastName: "",
             currentStreakDays: Number(row.current_streak_days || 0),
             longestStreakDays: Number(row.longest_streak_days || 0),
-            totalPoints: Number(row.total_points || 0),
+            totalPoints: pts,
             lastCompletedDate: row.last_completed_date
               ? String(row.last_completed_date).slice(0, 10)
               : null,
+            rank,
+            rankColorHex,
           };
         }
       })
     );
     return users;
+  }
+
+  async _getAdminLeaderboardThisMonth({ limit }) {
+    const settings = await this.model.getSettings();
+    const nowYmd = formatInTimeZone(new Date(), settings.server_timezone);
+    const yyyyMm = nowYmd.slice(0, 7);
+    return this.model.getAdminLeaderboardThisMonth({ limit, yyyyMm });
+  }
+
+  async _getAdminLeaderboardThisYear({ limit }) {
+    const settings = await this.model.getSettings();
+    const nowYmd = formatInTimeZone(new Date(), settings.server_timezone);
+    const yyyy = Number(nowYmd.slice(0, 4));
+    return this.model.getAdminLeaderboardThisYear({ limit, yyyy });
   }
 
   async completeDailyWalk({
@@ -153,6 +188,8 @@ class DevotionalService {
       throw new Error(`Minimum scroll engagement is ${minScroll}%`);
     }
 
+    const yyyy = Number(serverToday.slice(0, 4));
+
     try {
       await this.model.insertCompletion({
         firebaseUid,
@@ -173,15 +210,20 @@ class DevotionalService {
     const prevLastDate = stats?.last_completed_date
       ? String(stats.last_completed_date).slice(0, 10)
       : null;
-    const yesterday = getYesterday(serverToday);
     const prevStreak = Number(stats?.current_streak_days || 0);
     const prevLongest = Number(stats?.longest_streak_days || 0);
-    const prevTotal = Number(stats?.total_points || 0);
+    const prevYearPoints = await this.model.getYearPoints(firebaseUid, yyyy);
+    const prevTotal = Math.max(0, prevYearPoints - DAILY_POINTS);
 
-    const currentStreakDays =
-      prevLastDate === yesterday ? prevStreak + 1 : 1;
-    const longestStreakDays = Math.max(prevLongest, currentStreakDays);
-    const totalPoints = prevTotal + DAILY_POINTS;
+    const { currentStreakDays, longestStreakDays, totalPoints } =
+      computeStatsAfterDailyCompletion({
+        serverToday,
+        prevLastDate,
+        prevStreak,
+        prevLongest,
+        prevTotal,
+        dailyPoints: DAILY_POINTS,
+      });
 
     await this.model.upsertStats({
       firebaseUid,
@@ -191,6 +233,8 @@ class DevotionalService {
       lastCompletedDate: serverToday,
     });
 
+    const { rank, rankColorHex } = rankFromYearPoints(totalPoints);
+
     return {
       recorded: true,
       alreadyCompleted: false,
@@ -199,6 +243,8 @@ class DevotionalService {
       totalPoints,
       monthPoints: await this.model.getMonthlyPoints(firebaseUid, serverToday.slice(0, 7)),
       pointsAwarded: DAILY_POINTS,
+      rank,
+      rankColorHex,
     };
   }
 }

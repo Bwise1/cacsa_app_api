@@ -114,6 +114,21 @@ class DevotionalModel {
     return Number(rows[0]?.monthly_points || 0);
   }
 
+  /** Sum of points_awarded for calendar year `yyyy` (server date on devotional_date). */
+  async getYearPoints(firebaseUid, yyyy) {
+    const y = Math.round(Number(yyyy));
+    if (!Number.isFinite(y) || y < 2000 || y > 2100) {
+      throw new Error("Invalid year for getYearPoints");
+    }
+    const [rows] = await db.query(
+      `SELECT COALESCE(SUM(points_awarded), 0) AS year_points
+       FROM devotional_completion_events
+       WHERE firebase_uid = ? AND YEAR(devotional_date) = ?`,
+      [firebaseUid, y]
+    );
+    return Number(rows[0]?.year_points || 0);
+  }
+
   async getAdminLeaderboard({ limit = 20 }) {
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
     const [rows] = await db.query(
@@ -122,6 +137,69 @@ class DevotionalModel {
        ORDER BY total_points DESC, current_streak_days DESC, longest_streak_days DESC, firebase_uid ASC
        LIMIT ?`,
       [safeLimit]
+    );
+    return rows;
+  }
+
+  async getAdminLeaderboardThisMonth({ limit = 20, yyyyMm }) {
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const monthKey = String(yyyyMm || "").slice(0, 7);
+    if (!monthKey) {
+      throw new Error("yyyyMm is required for month leaderboard");
+    }
+
+    const [rows] = await db.query(
+      `SELECT
+         s.firebase_uid,
+         s.current_streak_days,
+         s.longest_streak_days,
+         COALESCE(SUM(e.points_awarded), 0) AS total_points,
+         s.last_completed_date
+       FROM devotional_user_stats s
+       LEFT JOIN devotional_completion_events e
+         ON e.firebase_uid = s.firebase_uid
+        AND DATE_FORMAT(e.devotional_date, '%Y-%m') = ?
+       GROUP BY s.firebase_uid
+       ORDER BY
+         total_points DESC,
+         s.current_streak_days DESC,
+         s.longest_streak_days DESC,
+         s.firebase_uid ASC
+       LIMIT ?`,
+      [monthKey, safeLimit]
+    );
+    return rows;
+  }
+
+  /**
+   * Leaderboard by points earned in calendar year `yyyy` (same tier scale as app "total" points).
+   */
+  async getAdminLeaderboardThisYear({ limit = 20, yyyy }) {
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const year = Math.round(Number(yyyy));
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) {
+      throw new Error("yyyy is required for year leaderboard");
+    }
+
+    const [rows] = await db.query(
+      `SELECT
+         s.firebase_uid,
+         MAX(s.current_streak_days) AS current_streak_days,
+         MAX(s.longest_streak_days) AS longest_streak_days,
+         COALESCE(SUM(e.points_awarded), 0) AS total_points,
+         MAX(s.last_completed_date) AS last_completed_date
+       FROM devotional_user_stats s
+       LEFT JOIN devotional_completion_events e
+         ON e.firebase_uid = s.firebase_uid
+        AND YEAR(e.devotional_date) = ?
+       GROUP BY s.firebase_uid
+       ORDER BY
+         total_points DESC,
+         current_streak_days DESC,
+         longest_streak_days DESC,
+         s.firebase_uid ASC
+       LIMIT ?`,
+      [year, safeLimit]
     );
     return rows;
   }

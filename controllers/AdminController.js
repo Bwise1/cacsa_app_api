@@ -1,6 +1,7 @@
 const express = require("express");
 const authMiddleware = require("../middlewares/authMiddleware");
 const requirePermission = require("../middlewares/requirePermission");
+const { requireAnyPermission } = require("../middlewares/requirePermission");
 const AdminService = require("../services/AdminService");
 const RoleModel = require("../models/RoleModel");
 const AudioPlayModel = require("../models/AudioPlayModel");
@@ -26,6 +27,7 @@ const adModel = new AdModel();
 const adService = new AdService();
 const referralService = new ReferralService();
 const devotionalService = new DevotionalService();
+const hymnStorageService = require("../services/hymnStorageService");
 
 /** Public: accept invitation */
 router.post("/invitations/accept", async (req, res) => {
@@ -57,6 +59,62 @@ router.post("/invitations/check-username", async (req, res) => {
 });
 
 router.use(authMiddleware);
+
+/** Hymn bundle JSON in Firebase Storage (Flutter sync). Same permission model as admin hymns UI. */
+router.get(
+  "/hymns/bundle",
+  requireAnyPermission("hymns:write", "admin:analytics"),
+  async (req, res) => {
+    try {
+      const data = await hymnStorageService.getBundle();
+      res.json(data);
+    } catch (error) {
+      console.error("GET /admin/hymns/bundle:", error);
+      res.status(500).json({
+        error: "Failed to load bundle",
+        hint: error.message,
+      });
+    }
+  }
+);
+
+router.put(
+  "/hymns/bundle",
+  requireAnyPermission("hymns:write", "admin:analytics"),
+  async (req, res) => {
+    try {
+      const bundle = req.body?.bundle;
+      const result = await hymnStorageService.saveBundle(bundle);
+      res.json(result);
+    } catch (error) {
+      if (error.code === "INVALID_BUNDLE") {
+        return res.status(400).json({ error: "Invalid bundle" });
+      }
+      console.error("PUT /admin/hymns/bundle:", error);
+      res.status(500).json({
+        error: "Save failed",
+        hint: error.message,
+      });
+    }
+  }
+);
+
+router.get(
+  "/hymns/manifest",
+  requireAnyPermission("hymns:write", "admin:analytics"),
+  async (req, res) => {
+    try {
+      const data = await hymnStorageService.getManifest();
+      res.json(data);
+    } catch (error) {
+      console.error("GET /admin/hymns/manifest:", error);
+      res.status(500).json({
+        error: "Failed to load manifest",
+        hint: error.message,
+      });
+    }
+  }
+);
 
 /** Org-wide KPIs: admin users, subscribers, audio library, Firebase registered (approx), GA4 optional. */
 router.get(
@@ -244,7 +302,14 @@ router.get(
   async (req, res) => {
     try {
       const limit = req.query.limit ? Number(req.query.limit) : 20;
-      const rows = await devotionalService.getAdminLeaderboard({ limit });
+      const timeframeRaw = req.query.timeframe
+        ? String(req.query.timeframe)
+        : "this_year";
+      const timeframe =
+        timeframeRaw === "this_month"
+          ? "this_month"
+          : "this_year"; // all_time (legacy) falls through to calendar-year board
+      const rows = await devotionalService.getAdminLeaderboard({ limit, timeframe });
       res.json({ status: "success", rows });
     } catch (error) {
       res.status(500).json({ status: "error", message: error.message });

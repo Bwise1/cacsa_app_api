@@ -4,13 +4,14 @@
   "description": "paystack initialization",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test services/devotionalStreakUtils.test.js services/devotionalRankUtils.test.js",
     "start": "node index.js",
     "dev": "nodemon index.js",
     "migrate": "node db/migrate.js",
     "diagnose:subscriptions": "node scripts/diagnoseSubscriptionOrphans.js",
     "import:ads-firestore": "node scripts/importFirestoreAdverts.js",
-    "migrate:referrals-firestore": "node scripts/migrateLegacyReferralsFromFirestore.js"
+    "migrate:referrals-firestore": "node scripts/migrateLegacyReferralsFromFirestore.js",
+    "seed:hymns": "node scripts/seedHymnsFromFile.js"
   },
   "author": "benjys",
   "license": "ISC",

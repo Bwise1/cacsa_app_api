@@ -55,6 +55,7 @@ class ReferralService {
       monthPoints: progress.monthPoints,
       totalPoints: progress.totalPoints,
       rank: progress.rank,
+      rankColorHex: progress.rankColorHex,
     };
   }
 
