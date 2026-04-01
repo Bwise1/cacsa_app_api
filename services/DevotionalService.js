@@ -2,6 +2,7 @@ const DevotionalModel = require("../models/DevotionalModel");
 const { db } = require("../utils/firebase");
 const {
   computeStatsAfterDailyCompletion,
+  computeEffectiveCurrentStreak,
 } = require("./devotionalStreakUtils");
 const {
   rankFromYearPoints,
@@ -79,8 +80,16 @@ class DevotionalService {
     // Competitive points + rank: calendar year in server TZ (Jan 1 starts fresh).
     const totalPoints = await this.model.getYearPoints(firebaseUid, yyyy);
     const { rank, rankColorHex } = rankFromYearPoints(totalPoints);
+    const lastCompletedDate = stats?.last_completed_date
+      ? String(stats.last_completed_date).slice(0, 10)
+      : null;
+    const effectiveCurrentStreak = computeEffectiveCurrentStreak({
+      serverToday: nowYmd,
+      lastCompletedDate,
+      storedCurrentStreakDays: Number(stats?.current_streak_days || 0),
+    });
     return {
-      currentStreakDays: Number(stats?.current_streak_days || 0),
+      currentStreakDays: effectiveCurrentStreak,
       longestStreakDays: Number(stats?.longest_streak_days || 0),
       totalPoints,
       monthPoints: monthlyPoints,
@@ -94,6 +103,8 @@ class DevotionalService {
 
   async getAdminLeaderboard({ limit = 20, timeframe = "this_year" }) {
     const tf = timeframe === "this_month" ? "this_month" : "this_year";
+    const settings = await this.model.getSettings();
+    const nowYmd = formatInTimeZone(new Date(), settings.server_timezone);
     const rows =
       tf === "this_month"
         ? await this._getAdminLeaderboardThisMonth({ limit })
@@ -104,6 +115,14 @@ class DevotionalService {
         : rankFromYearPoints;
     const users = await Promise.all(
       rows.map(async (row) => {
+        const lastCompletedDate = row.last_completed_date
+          ? String(row.last_completed_date).slice(0, 10)
+          : null;
+        const effectiveCurrentStreak = computeEffectiveCurrentStreak({
+          serverToday: nowYmd,
+          lastCompletedDate,
+          storedCurrentStreakDays: Number(row.current_streak_days || 0),
+        });
         const pts = Number(row.total_points || 0);
         const { rank, rankColorHex } = rankFn(pts);
         try {
@@ -117,12 +136,10 @@ class DevotionalService {
             fullName: fullName || row.firebase_uid,
             firstName,
             lastName,
-            currentStreakDays: Number(row.current_streak_days || 0),
+            currentStreakDays: effectiveCurrentStreak,
             longestStreakDays: Number(row.longest_streak_days || 0),
             totalPoints: pts,
-            lastCompletedDate: row.last_completed_date
-              ? String(row.last_completed_date).slice(0, 10)
-              : null,
+            lastCompletedDate,
             rank,
             rankColorHex,
           };
@@ -132,19 +149,26 @@ class DevotionalService {
             fullName: row.firebase_uid,
             firstName: "",
             lastName: "",
-            currentStreakDays: Number(row.current_streak_days || 0),
+            currentStreakDays: effectiveCurrentStreak,
             longestStreakDays: Number(row.longest_streak_days || 0),
             totalPoints: pts,
-            lastCompletedDate: row.last_completed_date
-              ? String(row.last_completed_date).slice(0, 10)
-              : null,
+            lastCompletedDate,
             rank,
             rankColorHex,
           };
         }
       })
     );
-    return users;
+    return users.sort((a, b) => {
+      if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+      if (b.currentStreakDays !== a.currentStreakDays) {
+        return b.currentStreakDays - a.currentStreakDays;
+      }
+      if (b.longestStreakDays !== a.longestStreakDays) {
+        return b.longestStreakDays - a.longestStreakDays;
+      }
+      return String(a.firebaseUid).localeCompare(String(b.firebaseUid));
+    });
   }
 
   async _getAdminLeaderboardThisMonth({ limit }) {

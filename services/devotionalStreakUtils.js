@@ -28,7 +28,26 @@ function computeStatsAfterDailyCompletion({
   return { currentStreakDays, longestStreakDays, totalPoints };
 }
 
+/**
+ * Effective "live" streak for read paths.
+ * - If last completion is today or yesterday, streak is still live.
+ * - If the user has missed a full day, current streak is effectively 0.
+ */
+function computeEffectiveCurrentStreak({
+  serverToday,
+  lastCompletedDate,
+  storedCurrentStreakDays,
+}) {
+  const stored = Math.max(0, Number(storedCurrentStreakDays || 0));
+  if (!lastCompletedDate || !serverToday || stored <= 0) return 0;
+  const last = String(lastCompletedDate).slice(0, 10);
+  if (last === String(serverToday).slice(0, 10)) return stored;
+  const yesterday = getYesterday(serverToday);
+  return last === yesterday ? stored : 0;
+}
+
 module.exports = {
   getYesterday,
   computeStatsAfterDailyCompletion,
+  computeEffectiveCurrentStreak,
 };

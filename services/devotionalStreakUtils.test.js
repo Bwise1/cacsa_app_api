@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const {
   getYesterday,
   computeStatsAfterDailyCompletion,
+  computeEffectiveCurrentStreak,
 } = require("./devotionalStreakUtils");
 
 const DAILY = 10;
@@ -88,4 +89,31 @@ test("totalPoints adds dailyPoints whether streak continues or resets", () => {
   });
   assert.equal(afterGap.totalPoints, prevTotal + daily);
   assert.equal(consecutive.totalPoints, prevTotal + daily);
+});
+
+test("effective streak: yesterday completion remains live", () => {
+  const r = computeEffectiveCurrentStreak({
+    serverToday: "2026-04-01",
+    lastCompletedDate: "2026-03-31",
+    storedCurrentStreakDays: 5,
+  });
+  assert.equal(r, 5);
+});
+
+test("effective streak: missed full day is 0", () => {
+  const r = computeEffectiveCurrentStreak({
+    serverToday: "2026-04-01",
+    lastCompletedDate: "2026-03-30",
+    storedCurrentStreakDays: 9,
+  });
+  assert.equal(r, 0);
+});
+
+test("effective streak: no history is 0", () => {
+  const r = computeEffectiveCurrentStreak({
+    serverToday: "2026-04-01",
+    lastCompletedDate: null,
+    storedCurrentStreakDays: 0,
+  });
+  assert.equal(r, 0);
 });

@@ -69,3 +69,11 @@ async function sendBroadcast(payload) {
 }
 
 module.exports = { sendBroadcast, collectDeviceTokens };
+
+/*
+TODO(streak-reminder-near-midnight):
+- Add a scheduled service method that runs once daily near midnight in server TZ.
+- Eligibility: users with valid device token, reminders enabled, and no completion for serverToday.
+- Deduplicate sends per uid/date (e.g., reminder_sent_for_date) to avoid duplicate pushes.
+- Suggested message: "Complete today's devotional before midnight to keep your streak alive."
+*/

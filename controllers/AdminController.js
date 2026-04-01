@@ -803,3 +803,10 @@ router.delete("/ads/:id", requirePermission("ads:write"), async (req, res) => {
 });
 
 module.exports = router;
+
+/*
+TODO(streak-reminder-scheduler-hook):
+- Wire cron/scheduler job entry for daily near-midnight streak reminders (example: 23:30 server TZ).
+- Trigger reminder service job from scheduler context, not from request/response path.
+- Ensure idempotency and observability (uid/date dedupe, logging, and failure metrics).
+*/
