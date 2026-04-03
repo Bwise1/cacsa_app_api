@@ -52,6 +52,7 @@ hymnStorageService
   .then((result) => {
     console.log("Uploaded bundle + manifest.");
     console.log("contentRevision:", result.contentRevision);
+    if (result.syncVersion != null) console.log("syncVersion:", result.syncVersion);
     console.log("manifest.manifestUrl (set HYMNS_MANIFEST_URL in Flutter to this + manifest path):");
     return hymnStorageService.getManifest();
   })

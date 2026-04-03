@@ -54,6 +54,19 @@ if (require.main === module) {
     }
   }
 
+  async function purgeExpiredFamilyPendingInvites() {
+    try {
+      const n = await FamilyModel.deleteExpiredPendingInvites();
+      if (n > 0) {
+        console.log(
+          `Removed ${n} expired pending family invite row(s) (frees email for re-invite).`
+        );
+      }
+    } catch (error) {
+      console.error("purgeExpiredFamilyPendingInvites:", error);
+    }
+  }
+
   /** Destructive: removes Firestore subscription docs for users still active in MySQL (maintenance). */
   async function deleteActiveSubscriptions() {
     try {
@@ -85,5 +98,6 @@ if (require.main === module) {
 
   (async () => {
     await expireSubscriptions();
+    await purgeExpiredFamilyPendingInvites();
   })();
 }

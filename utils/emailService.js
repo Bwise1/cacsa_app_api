@@ -62,6 +62,17 @@ function buildJoinUrls(token) {
   return { deep, web };
 }
 
+/** Keep in sync with `INVITE_TTL_DAYS` in FamilyController.js */
+const FAMILY_INVITE_TTL_DAYS = 14;
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 async function createSmtpTransport() {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
@@ -202,26 +213,73 @@ async function sendFamilyInviteEmail({
   tierLabel,
 }) {
   const { deep, web } = buildJoinUrls(inviteToken);
+  const isStudentFamily =
+    typeof tierLabel === "string" &&
+    tierLabel.toLowerCase().includes("student");
 
   const textbody = [
     `You've been invited to join a CACSA family subscription${inviterEmail ? ` by ${inviterEmail}` : ""}.`,
     tierLabel ? `Plan: ${tierLabel}` : "",
     "",
-    "Open in the CACSA app:",
-    deep,
-    web ? `\nOr open this link (web / email): ${web}` : "",
+    isStudentFamily
+      ? "The household owner has already completed plan verification. You do not need a student verification code to accept — only this invite and signing in with this email."
+      : "",
     "",
-    "You must sign in with the same email address this invite was sent to.",
+    "YOUR INVITE CODE (copy the full code):",
+    inviteToken,
+    "",
+    "How to join in the app:",
+    "1) Install and open the CACSA app.",
+    `2) Sign in with this exact email address (${toEmail}).`,
+    "3) Open Subscribe — if you see \"You have a family invitation\", tap Accept; otherwise go to Subscription → \"Have a family invite code?\" (or Join family) and paste the code above.",
+    "4) Tap Accept invitation.",
+    "",
+    `This invite expires in ${FAMILY_INVITE_TTL_DAYS} days. If it expires, ask the organiser to send a new invite.`,
+    "",
+    "You must use the same email address this message was sent to.",
+    web ? `\nOpen in browser (if supported on your device):\n${web}` : "",
+    deep ? `\nOpen in app:\n${deep}` : "",
   ]
     .filter(Boolean)
     .join("\n");
+
+  const tokenHtml = escapeHtml(inviteToken);
+
+  const htmlbody = `
+<div style="font-family:system-ui,Segoe UI,sans-serif;line-height:1.5;color:#1a1a1a;max-width:560px;">
+  <h2 style="margin:0 0 12px;font-size:20px;">You're invited to a CACSA family plan</h2>
+  <p style="margin:0 0 8px;">You've been invited to join a CACSA family subscription${
+    inviterEmail ? ` by <strong>${escapeHtml(inviterEmail)}</strong>` : ""
+  }.</p>
+  ${tierLabel ? `<p style="margin:0 0 12px;"><strong>Plan:</strong> ${escapeHtml(tierLabel)}</p>` : ""}
+  ${
+    isStudentFamily
+      ? `<p style="margin:0 0 12px;font-size:14px;color:#333;">The household owner has already completed verification for this plan. You do <strong>not</strong> need a student verification code to join — use this invite and sign in with <strong>${escapeHtml(toEmail)}</strong>.</p>`
+      : ""
+  }
+  <p style="margin:16px 0 6px;font-weight:600;">Your invite code</p>
+  <div style="background:#f4f4f4;border-radius:8px;padding:12px 14px;font-family:ui-monospace,monospace;font-size:14px;word-break:break-all;border:1px solid #ddd;">${tokenHtml}</div>
+  <p style="margin:16px 0 8px;font-weight:600;">Steps</p>
+  <ol style="margin:0;padding-left:20px;">
+    <li>Install and open the CACSA app.</li>
+    <li>Sign in with <strong>${escapeHtml(toEmail)}</strong>.</li>
+    <li>On <strong>Subscribe</strong>, use the invitation banner if shown, or go to <strong>Join family</strong> and paste the code.</li>
+    <li>Tap <strong>Accept invitation</strong>.</li>
+  </ol>
+  <p style="margin:16px 0 0;font-size:13px;color:#555;">This invite expires in <strong>${FAMILY_INVITE_TTL_DAYS} days</strong>. If it expires, ask the organiser to send a new invite.</p>
+  ${
+    web
+      ? `<p style="margin:16px 0 0;"><a href="${escapeHtml(web)}" style="color:#00A551;">Open join link in browser</a></p>`
+      : ""
+  }
+</div>`.trim();
 
   const result = await sendTransactionalEmail({
     toEmail,
     toName: toEmail.split("@")[0],
     subject: "Join your CACSA family subscription",
     textbody,
-    logLabel: "family invite",
+    htmlbody,
   });
 
   if (!result.sent) {

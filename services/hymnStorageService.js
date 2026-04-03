@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const { admin } = require("../utils/firebase");
 
 const BUNDLE_PATH = "hymns/hymns_bundle.json";
+const BUNDLE_DRAFT_PATH = "hymns/hymns_bundle_draft.json";
 const MANIFEST_PATH = "hymns/hymns_manifest.json";
 const HYMN_SCHEMA_VERSION = 1;
 
@@ -33,7 +34,7 @@ function getBucket() {
 function emptyBundle() {
   return {
     schemaVersion: HYMN_SCHEMA_VERSION,
-    contentRevision: 1,
+    contentRevision: 0,
     updatedAt: new Date().toISOString(),
     defaultLocale: "en",
     supportedLocales: ["en", "yo"],
@@ -88,6 +89,13 @@ async function uploadJson(objectPath, body, makePublic) {
   }
 }
 
+async function deleteFileIfExists(objectPath) {
+  const bucket = getBucket();
+  const file = bucket.file(objectPath);
+  const [exists] = await file.exists();
+  if (exists) await file.delete();
+}
+
 function sha256Hex(text) {
   return crypto.createHash("sha256").update(text, "utf8").digest("hex");
 }
@@ -97,15 +105,27 @@ async function manifestPublicUrl() {
   return gcsPublicUrl(bucket.name, MANIFEST_PATH);
 }
 
+function validateBundleShape(bundle) {
+  if (!bundle || bundle.schemaVersion !== HYMN_SCHEMA_VERSION) {
+    const e = new Error("Invalid bundle");
+    e.code = "INVALID_BUNDLE";
+    throw e;
+  }
+}
+
 /**
- * @returns {Promise<{ bundle: object, exists: boolean }>}
+ * @returns {Promise<{ bundle: object, exists: boolean, hasDraft: boolean }>}
  */
 async function getBundle() {
-  const raw = await downloadText(BUNDLE_PATH);
-  if (!raw) {
-    return { bundle: emptyBundle(), exists: false };
+  const draftRaw = await downloadText(BUNDLE_DRAFT_PATH);
+  if (draftRaw) {
+    return { bundle: JSON.parse(draftRaw), exists: true, hasDraft: true };
   }
-  return { bundle: JSON.parse(raw), exists: true };
+  const liveRaw = await downloadText(BUNDLE_PATH);
+  if (liveRaw) {
+    return { bundle: JSON.parse(liveRaw), exists: true, hasDraft: false };
+  }
+  return { bundle: emptyBundle(), exists: false, hasDraft: false };
 }
 
 /**
@@ -121,28 +141,66 @@ async function getManifest() {
 }
 
 /**
+ * Save edits to draft only — does not update the public manifest or mobile sync version.
  * @param {object} bundle
- * @returns {Promise<{ ok: boolean, manifest: object, contentRevision: number }>}
+ * @returns {Promise<{ ok: boolean, draft: true }>}
  */
-async function saveBundle(bundle) {
-  if (!bundle || bundle.schemaVersion !== HYMN_SCHEMA_VERSION) {
-    const e = new Error("Invalid bundle");
-    e.code = "INVALID_BUNDLE";
-    throw e;
-  }
+async function saveDraft(bundle) {
+  validateBundleShape(bundle);
   bundle.updatedAt = new Date().toISOString();
-  bundle.contentRevision = Math.max(1, (bundle.contentRevision ?? 0) + 1);
+  await uploadJson(BUNDLE_DRAFT_PATH, JSON.stringify(bundle), true);
+  return { ok: true, draft: true };
+}
+
+/**
+ * Publish live bundle + manifest. Increments syncVersion (and contentRevision) once per publish.
+ * @param {object | undefined} bundleOptional — if set, use this bundle; else draft, else live (re-publish).
+ * @returns {Promise<{ ok: boolean, manifest: object, syncVersion: number, contentRevision: number }>}
+ */
+async function publishBundle(bundleOptional) {
+  let bundle;
+  if (bundleOptional != null) {
+    bundle = bundleOptional;
+  } else {
+    const draftRaw = await downloadText(BUNDLE_DRAFT_PATH);
+    if (draftRaw) {
+      bundle = JSON.parse(draftRaw);
+    } else {
+      const liveRaw = await downloadText(BUNDLE_PATH);
+      if (!liveRaw) {
+        const e = new Error("Nothing to publish");
+        e.code = "NOTHING_TO_PUBLISH";
+        throw e;
+      }
+      bundle = JSON.parse(liveRaw);
+    }
+  }
+
+  validateBundleShape(bundle);
+
+  const manifestOld = await getManifest();
+  const prevSync =
+    manifestOld.manifest?.syncVersion ??
+    manifestOld.manifest?.contentRevision ??
+    0;
+  const nextSync = Math.max(1, prevSync + 1);
+
+  bundle.updatedAt = new Date().toISOString();
+  bundle.contentRevision = nextSync;
 
   const bundleJson = JSON.stringify(bundle);
   const hash = sha256Hex(bundleJson);
 
   await uploadJson(BUNDLE_PATH, bundleJson, true);
+  await deleteFileIfExists(BUNDLE_DRAFT_PATH);
+
   const bucket = getBucket();
   const bundlePublicUrl = gcsPublicUrl(bucket.name, BUNDLE_PATH);
 
   const manifest = {
     schemaVersion: bundle.schemaVersion,
     contentRevision: bundle.contentRevision,
+    syncVersion: nextSync,
     bundleUrl: bundlePublicUrl,
     bundleSha256: hash,
   };
@@ -153,14 +211,19 @@ async function saveBundle(bundle) {
   return {
     ok: true,
     manifest,
+    syncVersion: nextSync,
     contentRevision: bundle.contentRevision,
   };
 }
 
 module.exports = {
   BUNDLE_PATH,
+  BUNDLE_DRAFT_PATH,
   MANIFEST_PATH,
   getBundle,
   getManifest,
-  saveBundle,
+  saveDraft,
+  publishBundle,
+  /** @deprecated Use publishBundle for uploads that should go live; saveDraft for in-progress edits. */
+  saveBundle: publishBundle,
 };

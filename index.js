@@ -12,7 +12,8 @@ require("dotenv").config();
 const logger = require("./utils/logger");
 
 app.use(cors());
-app.use(express.json());
+// Default 100kb is too small for admin hymn bundle JSON and similar uploads
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "10mb" }));
 
 app.use(morgan("dev"));
 

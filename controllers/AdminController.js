@@ -11,6 +11,7 @@ const { getOverviewMetrics } = require("../services/overviewMetricsService");
 const appUsersAdminService = require("../services/appUsersAdminService");
 const adminSubscriptionService = require("../services/adminSubscriptionService");
 const SubscriptionPlanModel = require("../models/SubscriptionPlanModel");
+const studentCodeAdminService = require("../services/studentCodeAdminService");
 const UserModel = require("../models/UserModel");
 const AdModel = require("../models/AdModel");
 const { AdService } = require("../services/AdService");
@@ -28,6 +29,8 @@ const adService = new AdService();
 const referralService = new ReferralService();
 const devotionalService = new DevotionalService();
 const hymnStorageService = require("../services/hymnStorageService");
+const ytStreamAdminService = require("../services/ytStreamAdminService");
+const broadcastNotificationsAdminService = require("../services/broadcastNotificationsAdminService");
 
 /** Public: accept invitation */
 router.post("/invitations/accept", async (req, res) => {
@@ -84,7 +87,13 @@ router.put(
   async (req, res) => {
     try {
       const bundle = req.body?.bundle;
-      const result = await hymnStorageService.saveBundle(bundle);
+      const publish = req.body?.publish === true;
+      if (!bundle) {
+        return res.status(400).json({ error: "bundle required" });
+      }
+      const result = publish
+        ? await hymnStorageService.publishBundle(bundle)
+        : await hymnStorageService.saveDraft(bundle);
       res.json(result);
     } catch (error) {
       if (error.code === "INVALID_BUNDLE") {
@@ -93,6 +102,30 @@ router.put(
       console.error("PUT /admin/hymns/bundle:", error);
       res.status(500).json({
         error: "Save failed",
+        hint: error.message,
+      });
+    }
+  }
+);
+
+/** Promote draft (or re-publish live) to apps — bumps syncVersion once. Body optional. */
+router.post(
+  "/hymns/publish",
+  requireAnyPermission("hymns:write", "admin:analytics"),
+  async (req, res) => {
+    try {
+      const result = await hymnStorageService.publishBundle();
+      res.json(result);
+    } catch (error) {
+      if (error.code === "NOTHING_TO_PUBLISH") {
+        return res.status(400).json({ error: "Nothing to publish" });
+      }
+      if (error.code === "INVALID_BUNDLE") {
+        return res.status(400).json({ error: "Invalid bundle" });
+      }
+      console.error("POST /admin/hymns/publish:", error);
+      res.status(500).json({
+        error: "Publish failed",
         hint: error.message,
       });
     }
@@ -570,11 +603,70 @@ router.post(
   requirePermission("notifications:send"),
   async (req, res) => {
     try {
-      const { title, body } = req.body;
-      const result = await sendBroadcast({ title, body });
+      const { title, body, audience, state, states } = req.body ?? {};
+      const result = await sendBroadcast({ title, body, audience, state, states });
       res.json({ status: "success", ...result });
     } catch (error) {
       res.status(500).json({ status: "error", message: error.message });
+    }
+  }
+);
+
+router.get(
+  "/yt-stream",
+  requirePermission("notifications:send"),
+  async (req, res) => {
+    try {
+      const channels = await ytStreamAdminService.listYtStreams();
+      res.json({ status: "success", channels });
+    } catch (error) {
+      res.status(500).json({ status: "error", message: error.message });
+    }
+  }
+);
+
+router.put(
+  "/yt-stream/:docId",
+  requirePermission("notifications:send"),
+  async (req, res) => {
+    try {
+      const { docId } = req.params;
+      const { link, name, section } = req.body ?? {};
+      await ytStreamAdminService.updateYtStream(docId, { link, name, section });
+      res.json({ status: "success" });
+    } catch (error) {
+      res.status(400).json({ status: "error", message: error.message });
+    }
+  }
+);
+
+router.get(
+  "/broadcast-notifications",
+  requirePermission("notifications:send"),
+  async (req, res) => {
+    try {
+      const notifications = await broadcastNotificationsAdminService.listBroadcastNotifications();
+      res.json({ status: "success", notifications });
+    } catch (error) {
+      res.status(500).json({ status: "error", message: error.message });
+    }
+  }
+);
+
+router.post(
+  "/broadcast-notifications/remove",
+  requirePermission("notifications:send"),
+  async (req, res) => {
+    try {
+      const { title, body, timeStamp } = req.body ?? {};
+      await broadcastNotificationsAdminService.removeBroadcastNotification({
+        title,
+        body,
+        timeStamp,
+      });
+      res.json({ status: "success" });
+    } catch (error) {
+      res.status(400).json({ status: "error", message: error.message });
     }
   }
 );
@@ -589,6 +681,128 @@ router.get(
       res.json({ status: "success", plans });
     } catch (error) {
       res.status(500).json({ status: "error", message: error.message });
+    }
+  }
+);
+
+/** Batch: Firestore students_code configured flags for plan_code list (comma-separated). */
+router.get(
+  "/student-verification-status",
+  requirePermission("admin:manage_plans"),
+  async (req, res) => {
+    try {
+      const raw = req.query.planCodes;
+      if (!raw || String(raw).trim() === "") {
+        return res.json({ status: "success", configured: {} });
+      }
+      const codes = String(raw)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const configured = await studentCodeAdminService.batchConfigured(codes);
+      res.json({ status: "success", configured });
+    } catch (error) {
+      res.status(500).json({ status: "error", message: error.message });
+    }
+  }
+);
+
+router.get(
+  "/subscription-plans/:id/student-verification",
+  requirePermission("admin:manage_plans"),
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).json({ status: "error", message: "Invalid id" });
+      }
+      const plan = await SubscriptionPlanModel.getPlanByIdAdmin(id);
+      if (!plan) {
+        return res.status(404).json({ status: "error", message: "Plan not found" });
+      }
+      if (!studentCodeAdminService.isStudentVerificationKind(plan.plan_kind)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Plan kind does not use student verification",
+        });
+      }
+      if (!plan.plan_code || String(plan.plan_code).trim() === "") {
+        return res.status(400).json({
+          status: "error",
+          message: "Plan must have a plan_code to store verification",
+        });
+      }
+      const configured = await studentCodeAdminService.isConfigured(plan.plan_code);
+      res.json({ status: "success", configured });
+    } catch (error) {
+      res.status(500).json({ status: "error", message: error.message });
+    }
+  }
+);
+
+router.put(
+  "/subscription-plans/:id/student-verification",
+  requirePermission("admin:manage_plans"),
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).json({ status: "error", message: "Invalid id" });
+      }
+      const plan = await SubscriptionPlanModel.getPlanByIdAdmin(id);
+      if (!plan) {
+        return res.status(404).json({ status: "error", message: "Plan not found" });
+      }
+      if (!studentCodeAdminService.isStudentVerificationKind(plan.plan_kind)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Plan kind does not use student verification",
+        });
+      }
+      if (!plan.plan_code || String(plan.plan_code).trim() === "") {
+        return res.status(400).json({
+          status: "error",
+          message: "Plan must have a plan_code to store verification",
+        });
+      }
+      const { code } = req.body ?? {};
+      await studentCodeAdminService.upsertCode(plan.plan_code, code);
+      res.json({ status: "success" });
+    } catch (error) {
+      res.status(400).json({ status: "error", message: error.message });
+    }
+  }
+);
+
+router.delete(
+  "/subscription-plans/:id/student-verification",
+  requirePermission("admin:manage_plans"),
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).json({ status: "error", message: "Invalid id" });
+      }
+      const plan = await SubscriptionPlanModel.getPlanByIdAdmin(id);
+      if (!plan) {
+        return res.status(404).json({ status: "error", message: "Plan not found" });
+      }
+      if (!studentCodeAdminService.isStudentVerificationKind(plan.plan_kind)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Plan kind does not use student verification",
+        });
+      }
+      if (!plan.plan_code || String(plan.plan_code).trim() === "") {
+        return res.status(400).json({
+          status: "error",
+          message: "Plan must have a plan_code",
+        });
+      }
+      await studentCodeAdminService.deleteCode(plan.plan_code);
+      res.json({ status: "success" });
+    } catch (error) {
+      res.status(400).json({ status: "error", message: error.message });
     }
   }
 );

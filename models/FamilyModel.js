@@ -87,6 +87,32 @@ exports.findMemberByInviteHash = async (tokenHash) => {
   return rows[0] || null;
 };
 
+/** Pending invite row for this email (not yet accepted). */
+exports.findPendingInviteForEmail = async (emailNormalized) => {
+  const [rows] = await db.query(
+    `SELECT fm.id, fm.invite_expires_at, fg.plan_tier, fg.id AS family_id
+     FROM family_members fm
+     INNER JOIN family_groups fg ON fg.id = fm.family_id AND fg.status = 'active'
+     WHERE fm.email_normalized = ? AND fm.status = 'pending'
+       AND (fm.invite_expires_at IS NULL OR fm.invite_expires_at > NOW())
+     ORDER BY fm.id DESC
+     LIMIT 1`,
+    [emailNormalized]
+  );
+  return rows[0] || null;
+};
+
+/** Removes stale pending rows so owners can re-invite the same email (unique on family_id+email). */
+exports.deleteExpiredPendingInvites = async () => {
+  const [result] = await db.query(
+    `DELETE FROM family_members
+     WHERE status = 'pending'
+       AND invite_expires_at IS NOT NULL
+       AND invite_expires_at < NOW()`
+  );
+  return result.affectedRows ?? 0;
+};
+
 exports.updateMemberAccepted = async ({
   memberId,
   uid,

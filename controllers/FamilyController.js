@@ -3,8 +3,6 @@ const crypto = require("crypto");
 const router = express.Router();
 const { firebaseAuthMiddleware } = require("../middlewares/firebaseAuthMiddleware");
 const FamilyModel = require("../models/FamilyModel");
-const SubscriptionPlanModel = require("../models/SubscriptionPlanModel");
-const { verifyStudentCode } = require("../utils/studentCodeVerification");
 const { sendFamilyInviteEmail } = require("../utils/emailService");
 const { syncSubscriptionToFirestore } = require("../services/subscriptionFirestoreSyncService");
 const {
@@ -122,11 +120,12 @@ router.post("/invite", firebaseAuthMiddleware, async (req, res) => {
 });
 
 /**
- * Invitee accepts after Firebase sign-in; optional studentCode for student_family.
+ * Invitee accepts after Firebase sign-in.
+ * Student Family: no student code required — the purchaser already verified; invite + email match is enough.
  */
 router.post("/accept", firebaseAuthMiddleware, async (req, res) => {
   try {
-    const { token, studentCode } = req.body;
+    const { token } = req.body;
     if (!token || typeof token !== "string") {
       return res.status(400).json({ error: "token required" });
     }
@@ -157,17 +156,6 @@ router.post("/accept", firebaseAuthMiddleware, async (req, res) => {
 
     const uid = req.firebaseUser.uid;
 
-    if (member.plan_tier === "student_family") {
-      const plan = await SubscriptionPlanModel.getPlanById(member.plan_id);
-      if (!plan?.plan_code) {
-        return res.status(500).json({ error: "Plan configuration error" });
-      }
-      const ok = await verifyStudentCode(plan.plan_code, studentCode);
-      if (!ok) {
-        return res.status(400).json({ error: "Invalid student verification code" });
-      }
-    }
-
     await FamilyModel.updateMemberAccepted({
       memberId: member.id,
       uid,
@@ -177,6 +165,32 @@ router.post("/accept", firebaseAuthMiddleware, async (req, res) => {
     await syncSubscriptionToFirestore(uid);
 
     res.json({ success: true, familyId: member.family_id });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Whether the signed-in user's email has a pending family invite (not yet accepted).
+ */
+router.get("/pending-invite", firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const email = req.firebaseUser.email;
+    if (!email) {
+      return res.status(400).json({ error: "Signed-in account has no email" });
+    }
+    const norm = FamilyModel.normalizeEmail(email);
+    const row = await FamilyModel.findPendingInviteForEmail(norm);
+    if (!row) {
+      return res.json({ hasPendingInvite: false });
+    }
+    res.json({
+      hasPendingInvite: true,
+      planTier: row.plan_tier,
+      inviteExpiresAt: row.invite_expires_at,
+      familyId: row.family_id,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message });
