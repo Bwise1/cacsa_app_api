@@ -80,7 +80,22 @@ class ReferralService {
 
     const existing = await this.model.getAttributionByReferredUid(referredUid);
     if (existing && existing.status === "converted") {
-      return { status: "converted", message: "Referral already converted" };
+      return {
+        outcome: "already_converted",
+        message: "You already used a referral code when you subscribed.",
+      };
+    }
+    if (existing && existing.status === "pending") {
+      const existingCode = String(existing.referral_code || "").trim().toUpperCase();
+      if (existingCode === cleanedCode) {
+        return {
+          outcome: "already_pending",
+          message: "This referral code is already applied to your account.",
+        };
+      }
+      throw new Error(
+        "You already applied a different referral code. It cannot be changed."
+      );
     }
 
     await this.model.upsertAttribution({
@@ -90,7 +105,7 @@ class ReferralService {
       status: "pending",
       rejectedReason: null,
     });
-    return { status: "pending", message: "Referral captured" };
+    return { outcome: "captured", message: "Referral captured" };
   }
 
   async convertOnFirstPaidSubscription({ referredUid, subscriptionId }) {

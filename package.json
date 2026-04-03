@@ -11,7 +11,8 @@
     "diagnose:subscriptions": "node scripts/diagnoseSubscriptionOrphans.js",
     "import:ads-firestore": "node scripts/importFirestoreAdverts.js",
     "migrate:referrals-firestore": "node scripts/migrateLegacyReferralsFromFirestore.js",
-    "seed:hymns": "node scripts/seedHymnsFromFile.js"
+    "seed:hymns": "node scripts/seedHymnsFromFile.js",
+    "expire:all-subscriptions": "node scripts/expireAllSubscriptions.js"
   },
   "author": "benjys",
   "license": "ISC",
