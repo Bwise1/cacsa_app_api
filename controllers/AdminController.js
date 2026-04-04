@@ -869,17 +869,16 @@ router.put(
         amount,
         interval,
         currency,
-        plan_code,
         plan_kind,
         is_active,
       } = req.body;
+      // plan_code is immutable after create (Firestore students_code + app catalog).
       const plan = await SubscriptionPlanModel.updatePlanAdmin(id, {
         name,
         description,
         amount,
         interval,
         currency,
-        plan_code,
         plan_kind,
         is_active,
       });
