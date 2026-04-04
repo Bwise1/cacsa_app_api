@@ -603,8 +603,8 @@ router.post(
   requirePermission("notifications:send"),
   async (req, res) => {
     try {
-      const { title, body, audience, state, states } = req.body ?? {};
-      const result = await sendBroadcast({ title, body, audience, state, states });
+      const { title, body, audience, state, states, uids } = req.body ?? {};
+      const result = await sendBroadcast({ title, body, audience, state, states, uids });
       res.json({ status: "success", ...result });
     } catch (error) {
       res.status(500).json({ status: "error", message: error.message });

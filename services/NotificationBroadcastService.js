@@ -1,6 +1,10 @@
 const { admin, db } = require("../utils/firebase");
 
 const FieldValue = admin.firestore.FieldValue;
+const FieldPath = admin.firestore.FieldPath;
+
+/** Max Firebase UIDs per broadcast (audience "uids") — avoids huge fan-out by mistake. */
+const MAX_UIDS_PER_BROADCAST = 500;
 
 /** Firestore `in` queries allow at most 30 values per query. */
 const FIRESTORE_IN_LIMIT = 30;
@@ -28,12 +32,47 @@ function normalizeStateNames(states, stateLegacy) {
   return one ? [one] : [];
 }
 
+function normalizeUidList(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const x of raw) {
+    const u = String(x || "").trim();
+    if (!u || seen.has(u)) continue;
+    seen.add(u);
+    out.push(u);
+  }
+  return out;
+}
+
 /**
- * @param {{ audience?: string, state?: string, states?: string[] }} [options]
- * audience: `all` (default), `subscribed`, `state` (requires `states` and/or legacy `state`)
+ * @param {{ audience?: string, state?: string, states?: string[], uids?: string[] }} [options]
+ * audience: `all` (default), `subscribed`, `state`, `uids` (requires `uids`: Firestore `users` doc ids)
  */
 async function collectDeviceTokens(options = {}) {
   const audience = String(options.audience || "all").toLowerCase();
+
+  if (audience === "uids") {
+    const uids = normalizeUidList(options.uids);
+    if (!uids.length) {
+      throw new Error('Provide at least one user id when audience is "uids"');
+    }
+    if (uids.length > MAX_UIDS_PER_BROADCAST) {
+      throw new Error(`At most ${MAX_UIDS_PER_BROADCAST} user ids allowed per broadcast`);
+    }
+    const tokenSet = new Set();
+    for (let i = 0; i < uids.length; i += FIRESTORE_IN_LIMIT) {
+      const chunk = uids.slice(i, i + FIRESTORE_IN_LIMIT);
+      const snap = await db.collection("users").where(FieldPath.documentId(), "in", chunk).get();
+      snap.forEach((doc) => {
+        const d = doc.data();
+        if (d && d.token && typeof d.token === "string" && d.token.length > 0) {
+          tokenSet.add(d.token);
+        }
+      });
+    }
+    return Array.from(tokenSet);
+  }
 
   if (audience === "subscribed") {
     const query = db.collection("users").where("subscribed", "==", true);
@@ -61,7 +100,7 @@ async function collectDeviceTokens(options = {}) {
   }
 
   if (audience !== "all") {
-    throw new Error('audience must be "all", "subscribed", or "state"');
+    throw new Error('audience must be "all", "subscribed", "state", or "uids"');
   }
 
   const snap = await db.collection("users").get();
@@ -69,15 +108,15 @@ async function collectDeviceTokens(options = {}) {
 }
 
 /**
- * @param {{ title: string, body: string, audience?: string, state?: string, states?: string[] }} payload
+ * @param {{ title: string, body: string, audience?: string, state?: string, states?: string[], uids?: string[] }} payload
  */
 async function sendBroadcast(payload) {
-  const { title, body, audience, state, states } = payload;
+  const { title, body, audience, state, states, uids } = payload;
   if (!title || !body) {
     throw new Error("title and body are required");
   }
 
-  const tokens = await collectDeviceTokens({ audience, state, states });
+  const tokens = await collectDeviceTokens({ audience, state, states, uids });
   if (!tokens.length) {
     return { sent: 0, failed: 0, totalTokens: 0, message: "No device tokens found" };
   }
@@ -120,6 +159,7 @@ async function sendBroadcast(payload) {
     );
 
   const normalizedStates = normalizeStateNames(states, state);
+  const normalizedUids = normalizeUidList(Array.isArray(uids) ? uids : []);
 
   return {
     sent,
@@ -129,6 +169,10 @@ async function sendBroadcast(payload) {
     /** @deprecated single-state; prefer `states` */
     state: state ? String(state) : undefined,
     states: normalizedStates.length ? normalizedStates : undefined,
+    uidsRequested:
+      String(audience || "").toLowerCase() === "uids" && normalizedUids.length
+        ? normalizedUids.length
+        : undefined,
   };
 }
 

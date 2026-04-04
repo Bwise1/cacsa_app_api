@@ -221,57 +221,44 @@ async function sendFamilyInviteEmail({
     `You've been invited to join a CACSA family subscription${inviterEmail ? ` by ${inviterEmail}` : ""}.`,
     tierLabel ? `Plan: ${tierLabel}` : "",
     "",
-    isStudentFamily
-      ? "The household owner has already completed plan verification. You do not need a student verification code to accept — only this invite and signing in with this email."
-      : "",
-    "",
-    "YOUR INVITE CODE (copy the full code):",
-    inviteToken,
-    "",
-    "How to join in the app:",
+    "How to respond (no codes to copy):",
     "1) Install and open the CACSA app.",
-    `2) Sign in with this exact email address (${toEmail}).`,
-    "3) Open Subscribe — if you see \"You have a family invitation\", tap Accept; otherwise go to Subscription → \"Have a family invite code?\" (or Join family) and paste the code above.",
-    "4) Tap Accept invitation.",
+    `2) Sign in with this exact email address: ${toEmail}`,
+    "3) Open your Profile (for example, from the bottom navigation).",
+    "4) Tap Subscription.",
+    "5) On the Subscription screen, find the Invitation section — tap Accept to join the family plan, or Decline if you do not want to join.",
     "",
-    `This invite expires in ${FAMILY_INVITE_TTL_DAYS} days. If it expires, ask the organiser to send a new invite.`,
+    `This invitation expires in ${FAMILY_INVITE_TTL_DAYS} days. If it expires, ask the organiser to send a new invite.`,
     "",
-    "You must use the same email address this message was sent to.",
-    web ? `\nOpen in browser (if supported on your device):\n${web}` : "",
-    deep ? `\nOpen in app:\n${deep}` : "",
+    isStudentFamily
+      ? "Note: The household owner has already completed student verification for this plan. You do not need a separate verification code to accept."
+      : "",
   ]
     .filter(Boolean)
     .join("\n");
 
-  const tokenHtml = escapeHtml(inviteToken);
-
   const htmlbody = `
-<div style="font-family:system-ui,Segoe UI,sans-serif;line-height:1.5;color:#1a1a1a;max-width:560px;">
-  <h2 style="margin:0 0 12px;font-size:20px;">You're invited to a CACSA family plan</h2>
-  <p style="margin:0 0 8px;">You've been invited to join a CACSA family subscription${
+<div style="font-family:system-ui,Segoe UI,sans-serif;line-height:1.55;color:#1a1a1a;max-width:560px;margin:0 auto;">
+  <h2 style="margin:0 0 14px;font-size:20px;color:#111;">You're invited to a CACSA family plan</h2>
+  <p style="margin:0 0 10px;font-size:15px;">You've been invited to join a CACSA family subscription${
     inviterEmail ? ` by <strong>${escapeHtml(inviterEmail)}</strong>` : ""
   }.</p>
-  ${tierLabel ? `<p style="margin:0 0 12px;"><strong>Plan:</strong> ${escapeHtml(tierLabel)}</p>` : ""}
+  ${tierLabel ? `<p style="margin:0 0 14px;font-size:15px;"><strong>Plan:</strong> ${escapeHtml(tierLabel)}</p>` : ""}
   ${
     isStudentFamily
-      ? `<p style="margin:0 0 12px;font-size:14px;color:#333;">The household owner has already completed verification for this plan. You do <strong>not</strong> need a student verification code to join — use this invite and sign in with <strong>${escapeHtml(toEmail)}</strong>.</p>`
-      : ""
+      ? `<p style="margin:0 0 18px;font-size:14px;color:#444;background:#f7f7f7;border-radius:8px;padding:12px 14px;border:1px solid #eee;">The household owner has already completed verification for this plan. You do <strong>not</strong> need a student verification code — sign in with <strong>${escapeHtml(toEmail)}</strong>, then go to <strong>Profile</strong> → <strong>Subscription</strong> to accept.</p>`
+      : `<p style="margin:0 0 18px;font-size:14px;color:#444;">You must sign in with <strong>${escapeHtml(toEmail)}</strong> — the same address this email was sent to.</p>`
   }
-  <p style="margin:16px 0 6px;font-weight:600;">Your invite code</p>
-  <div style="background:#f4f4f4;border-radius:8px;padding:12px 14px;font-family:ui-monospace,monospace;font-size:14px;word-break:break-all;border:1px solid #ddd;">${tokenHtml}</div>
-  <p style="margin:16px 0 8px;font-weight:600;">Steps</p>
-  <ol style="margin:0;padding-left:20px;">
-    <li>Install and open the CACSA app.</li>
-    <li>Sign in with <strong>${escapeHtml(toEmail)}</strong>.</li>
-    <li>On <strong>Subscribe</strong>, use the invitation banner if shown, or go to <strong>Join family</strong> and paste the code.</li>
-    <li>Tap <strong>Accept invitation</strong>.</li>
+  <p style="margin:0 0 10px;font-size:15px;font-weight:600;color:#111;">What to do</p>
+  <ol style="margin:0 0 18px;padding-left:22px;font-size:15px;color:#222;">
+    <li style="margin-bottom:8px;">Install and open the <strong>CACSA</strong> app.</li>
+    <li style="margin-bottom:8px;">Sign in with <strong>${escapeHtml(toEmail)}</strong>.</li>
+    <li style="margin-bottom:8px;">Open <strong>Profile</strong> (for example, from the bottom navigation).</li>
+    <li style="margin-bottom:8px;">Tap <strong>Subscription</strong>.</li>
+    <li style="margin-bottom:8px;">On the Subscription screen, find the <strong>Invitation</strong> section and tap <strong>Accept</strong> to join, or <strong>Decline</strong> if you do not want to join.</li>
   </ol>
-  <p style="margin:16px 0 0;font-size:13px;color:#555;">This invite expires in <strong>${FAMILY_INVITE_TTL_DAYS} days</strong>. If it expires, ask the organiser to send a new invite.</p>
-  ${
-    web
-      ? `<p style="margin:16px 0 0;"><a href="${escapeHtml(web)}" style="color:#00A551;">Open join link in browser</a></p>`
-      : ""
-  }
+  <p style="margin:0 0 16px;font-size:13px;color:#555;">No invite codes to copy — everything happens in the app once you're signed in with this email.</p>
+  <p style="margin:0;font-size:13px;color:#555;">This invitation expires in <strong>${FAMILY_INVITE_TTL_DAYS} days</strong>. If it expires, ask the organiser to send a new invite.</p>
 </div>`.trim();
 
   const result = await sendTransactionalEmail({

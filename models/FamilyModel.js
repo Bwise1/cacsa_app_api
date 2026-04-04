@@ -87,6 +87,32 @@ exports.findMemberByInviteHash = async (tokenHash) => {
   return rows[0] || null;
 };
 
+/** Same join shape as findMemberByInviteHash; for signed-in invitee matching email (no token). */
+exports.findPendingMemberForAcceptByEmail = async (emailNormalized) => {
+  const [rows] = await db.query(
+    `SELECT fm.*, fg.plan_tier, fg.plan_id, fg.status AS family_status, fg.expires_at AS family_expires_at
+     FROM family_members fm
+     JOIN family_groups fg ON fg.id = fm.family_id
+     WHERE fm.email_normalized = ? AND fm.status = 'pending' AND fm.role = 'member'
+       AND (fm.invite_expires_at IS NULL OR fm.invite_expires_at > NOW())
+     ORDER BY fm.id DESC
+     LIMIT 1`,
+    [emailNormalized]
+  );
+  return rows[0] || null;
+};
+
+/** Remove the current pending invite for this email (invitee declines). */
+exports.declinePendingInviteForEmail = async (emailNormalized) => {
+  const pending = await exports.findPendingInviteForEmail(emailNormalized);
+  if (!pending) return 0;
+  const [result] = await db.query(
+    `DELETE FROM family_members WHERE id = ? AND email_normalized = ? AND status = 'pending' AND role = 'member'`,
+    [pending.id, emailNormalized]
+  );
+  return result.affectedRows ?? 0;
+};
+
 /** Pending invite row for this email (not yet accepted). */
 exports.findPendingInviteForEmail = async (emailNormalized) => {
   const [rows] = await db.query(

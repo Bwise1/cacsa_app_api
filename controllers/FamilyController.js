@@ -172,6 +172,69 @@ router.post("/accept", firebaseAuthMiddleware, async (req, res) => {
 });
 
 /**
+ * Invitee accepts using Firebase session only (email must match pending row).
+ */
+router.post("/accept-pending", firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const email = req.firebaseUser.email;
+    if (!email) {
+      return res.status(400).json({ error: "Signed-in account has no email" });
+    }
+    const emailNorm = FamilyModel.normalizeEmail(email);
+    const member = await FamilyModel.findPendingMemberForAcceptByEmail(emailNorm);
+
+    if (!member) {
+      return res.status(400).json({ error: "No pending invite for this account" });
+    }
+    if (member.invite_expires_at && new Date(member.invite_expires_at) < new Date()) {
+      return res.status(400).json({ error: "Invite has expired" });
+    }
+    if (member.family_status !== "active") {
+      return res.status(400).json({ error: "Family subscription is not active" });
+    }
+    if (new Date(member.family_expires_at) < new Date()) {
+      return res.status(400).json({ error: "Family subscription has expired" });
+    }
+
+    const uid = req.firebaseUser.uid;
+
+    await FamilyModel.updateMemberAccepted({
+      memberId: member.id,
+      uid,
+      studentVerified: member.plan_tier === "student_family",
+    });
+
+    await syncSubscriptionToFirestore(uid);
+
+    res.json({ success: true, familyId: member.family_id });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Invitee declines: removes their pending member row.
+ */
+router.post("/decline-pending", firebaseAuthMiddleware, async (req, res) => {
+  try {
+    const email = req.firebaseUser.email;
+    if (!email) {
+      return res.status(400).json({ error: "Signed-in account has no email" });
+    }
+    const norm = FamilyModel.normalizeEmail(email);
+    const n = await FamilyModel.declinePendingInviteForEmail(norm);
+    if (n === 0) {
+      return res.status(404).json({ error: "No pending invite to decline" });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * Whether the signed-in user's email has a pending family invite (not yet accepted).
  */
 router.get("/pending-invite", firebaseAuthMiddleware, async (req, res) => {
