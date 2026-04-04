@@ -733,7 +733,10 @@ router.get(
         });
       }
       const configured = await studentCodeAdminService.isConfigured(plan.plan_code);
-      res.json({ status: "success", configured });
+      const code = configured
+        ? await studentCodeAdminService.getCode(plan.plan_code)
+        : null;
+      res.json({ status: "success", configured, code });
     } catch (error) {
       res.status(500).json({ status: "error", message: error.message });
     }

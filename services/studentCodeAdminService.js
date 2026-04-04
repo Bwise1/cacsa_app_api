@@ -61,11 +61,31 @@ async function deleteCode(planCode) {
   await db.collection("students_code").doc(pc).delete();
 }
 
+/**
+ * @returns {Promise<string|null>} Trimmed code or null if missing / empty.
+ */
+async function getCode(planCode) {
+  const pc = String(planCode || "").trim();
+  if (!pc) return null;
+  try {
+    const snap = await db.collection("students_code").doc(pc).get();
+    if (!snap.exists) return null;
+    const c = snap.data()?.code;
+    if (c == null) return null;
+    const s = String(c).trim();
+    return s === "" ? null : s;
+  } catch (e) {
+    console.error("studentCodeAdminService.getCode:", e);
+    throw e;
+  }
+}
+
 module.exports = {
   STUDENT_VERIFICATION_KINDS,
   isStudentVerificationKind,
   isConfigured,
   batchConfigured,
+  getCode,
   upsertCode,
   deleteCode,
 };
