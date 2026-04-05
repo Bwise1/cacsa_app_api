@@ -147,13 +147,11 @@ async function sendBroadcast(payload) {
     .doc("notifications")
     .set(
       {
-        notifications: FieldValue.arrayUnion([
-          {
-            title,
-            body,
-            timeStamp: new Date().toISOString(),
-          },
-        ]),
+        notifications: FieldValue.arrayUnion({
+          title,
+          body,
+          timeStamp: new Date().toISOString(),
+        }),
       },
       { merge: true }
     );
