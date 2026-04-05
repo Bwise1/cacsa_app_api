@@ -607,7 +607,20 @@ router.post(
       const result = await sendBroadcast({ title, body, audience, state, states, uids });
       res.json({ status: "success", ...result });
     } catch (error) {
-      res.status(500).json({ status: "error", message: error.message });
+      const err = error instanceof Error ? error : new Error(String(error));
+      const payload = req.body ?? {};
+      console.error("POST /admin/notifications/broadcast failed:", {
+        message: err.message,
+        code: err.code,
+        stack: err.stack,
+        audience: payload.audience ?? null,
+        titlePresent: Boolean(payload.title),
+        notificationBodyPresent: Boolean(payload.body),
+        statesCount: Array.isArray(payload.states) ? payload.states.length : 0,
+        uidsCount: Array.isArray(payload.uids) ? payload.uids.length : 0,
+        hasLegacyState: Boolean(payload.state),
+      });
+      res.status(500).json({ status: "error", message: err.message });
     }
   }
 );
