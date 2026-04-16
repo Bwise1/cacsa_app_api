@@ -1,6 +1,11 @@
 const db = require("../db/db");
 
 class ReferralModel {
+  query(executor, sql, params) {
+    const runner = executor && typeof executor.query === "function" ? executor : db;
+    return runner.query(sql, params);
+  }
+
   async getCodeByUid(firebaseUid) {
     const [rows] = await db.query(
       `SELECT id, firebase_uid, code, is_active, created_at, updated_at
@@ -55,8 +60,9 @@ class ReferralModel {
     );
   }
 
-  async getAttributionByReferredUid(referredUid) {
-    const [rows] = await db.query(
+  async getAttributionByReferredUid(referredUid, executor = null) {
+    const [rows] = await this.query(
+      executor,
       `SELECT id, referred_uid, referrer_uid, referral_code, status, captured_at, converted_at, rejected_reason
        FROM referral_attributions
        WHERE referred_uid = ?
@@ -66,8 +72,9 @@ class ReferralModel {
     return rows[0] || null;
   }
 
-  async markConverted(attributionId) {
-    await db.query(
+  async markConverted(attributionId, executor = null) {
+    await this.query(
+      executor,
       `UPDATE referral_attributions
        SET status = 'converted', converted_at = CURRENT_TIMESTAMP(3), rejected_reason = NULL
        WHERE id = ?`,
@@ -75,8 +82,9 @@ class ReferralModel {
     );
   }
 
-  async insertConversion({ attributionId, subscriptionId, rewardPoints }) {
-    await db.query(
+  async insertConversion({ attributionId, subscriptionId, rewardPoints }, executor = null) {
+    await this.query(
+      executor,
       `INSERT INTO referral_conversions (attribution_id, subscription_id, reward_points)
        VALUES (?, ?, ?)`,
       [attributionId, subscriptionId, rewardPoints]

@@ -108,9 +108,12 @@ class ReferralService {
     return { outcome: "captured", message: "Referral captured" };
   }
 
-  async convertOnFirstPaidSubscription({ referredUid, subscriptionId }) {
+  async convertOnFirstPaidSubscription({ referredUid, subscriptionId, executor = null }) {
     if (!referredUid) return { converted: false, reason: "missing_uid" };
-    const attribution = await this.model.getAttributionByReferredUid(referredUid);
+    const attribution = await this.model.getAttributionByReferredUid(
+      referredUid,
+      executor
+    );
     if (!attribution) return { converted: false, reason: "no_attribution" };
     if (attribution.status === "converted") {
       return { converted: false, reason: "already_converted" };
@@ -124,7 +127,7 @@ class ReferralService {
         attributionId: attribution.id,
         subscriptionId,
         rewardPoints: DEFAULT_REWARD_POINTS,
-      });
+      }, executor);
     } catch (e) {
       if (e.code === "ER_DUP_ENTRY") {
         return { converted: false, reason: "duplicate_conversion" };
@@ -132,7 +135,7 @@ class ReferralService {
       throw e;
     }
 
-    await this.model.markConverted(attribution.id);
+    await this.model.markConverted(attribution.id, executor);
     return {
       converted: true,
       attributionId: attribution.id,

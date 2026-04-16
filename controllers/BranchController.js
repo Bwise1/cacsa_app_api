@@ -59,12 +59,37 @@ router.post("/", authMiddleware, async (req, res) => {
     longitude,
   } = req.body;
 
-  // Format the coordinates as POINT(longitude latitude)
-  const location = `POINT(${longitude} ${latitude})`;
+  if (!name || !stateId || !address || !type) {
+    return res.status(400).json({
+      status: "error",
+      message: "name, stateId, address and type are required",
+    });
+  }
+
+  const latNum =
+    latitude == null || latitude === "" ? null : Number(latitude);
+  const lngNum =
+    longitude == null || longitude === "" ? null : Number(longitude);
+  const hasCoordinates =
+    latNum != null &&
+    lngNum != null &&
+    Number.isFinite(latNum) &&
+    Number.isFinite(lngNum);
+  // Optional coordinates: persist NULL when missing.
+  const location = hasCoordinates ? `POINT(${lngNum} ${latNum})` : null;
 
   // Call your service's addBranch method to save the data
   branchService
-    .addBranch(name, stateId, address, location, type, website, phone, isHQ)
+    .addBranch(
+      name,
+      stateId,
+      address,
+      location,
+      type,
+      website ?? "",
+      phone ?? "",
+      isHQ ?? "false"
+    )
     .then((result) => {
       console.log("Branch added with ID:", result);
 
@@ -170,8 +195,24 @@ router.put("/:id", authMiddleware, async (req, res) => {
       longitude,
     } = req.body;
 
-    // Format the coordinates as POINT(longitude latitude)
-    const location = `POINT(${longitude} ${latitude})`;
+    if (!name || !stateId || !address || !type) {
+      return res.status(400).json({
+        status: "error",
+        message: "name, stateId, address and type are required",
+      });
+    }
+
+    const latNum =
+      latitude == null || latitude === "" ? null : Number(latitude);
+    const lngNum =
+      longitude == null || longitude === "" ? null : Number(longitude);
+    const hasCoordinates =
+      latNum != null &&
+      lngNum != null &&
+      Number.isFinite(latNum) &&
+      Number.isFinite(lngNum);
+    // Optional coordinates: keep existing location when coordinates are not provided.
+    const location = hasCoordinates ? `POINT(${lngNum} ${latNum})` : null;
     await branchService.editBranch(
       branchId,
       name,
@@ -179,9 +220,9 @@ router.put("/:id", authMiddleware, async (req, res) => {
       address,
       location,
       type,
-      website,
-      phone,
-      isHQ
+      website ?? "",
+      phone ?? "",
+      isHQ ?? "false"
     );
 
     res.status(200).json({

@@ -67,8 +67,8 @@ class Branch {
     console.log({ stateId: stateId });
     try {
       const result = await db.query(
-        "INSERT INTO branches (name, state_id, address, location, type, website, phone, is_HQ) VALUES (?, ?, ?, ST_GeomFromText(?), ?, ?, ?, CASE WHEN ? THEN 1 ELSE 0 END)",
-        [name, stateId, address, location, type, website, phone, isHQ]
+        "INSERT INTO branches (name, state_id, address, location, type, website, phone, is_HQ) VALUES (?, ?, ?, CASE WHEN ? IS NULL THEN NULL ELSE ST_GeomFromText(?) END, ?, ?, ?, CASE WHEN ? THEN 1 ELSE 0 END)",
+        [name, stateId, address, location, location, type, website, phone, isHQ]
       );
       return result.insertId;
     } catch (error) {
@@ -91,8 +91,19 @@ class Branch {
   ) {
     try {
       await db.query(
-        "UPDATE branches SET name = ?, address = ?, state_id = ?, type = ?, website = ?, phone = ?, is_HQ = ?, location = ST_GeomFromText(?) WHERE id = ?",
-        [name, address, stateId, type, website, phone, isHQ, location, branchId]
+        "UPDATE branches SET name = ?, address = ?, state_id = ?, type = ?, website = ?, phone = ?, is_HQ = ?, location = CASE WHEN ? IS NULL THEN location ELSE ST_GeomFromText(?) END WHERE id = ?",
+        [
+          name,
+          address,
+          stateId,
+          type,
+          website,
+          phone,
+          isHQ,
+          location,
+          location,
+          branchId,
+        ]
       );
     } catch (error) {
       console.error(error);
@@ -119,7 +130,8 @@ class Branch {
           b.name AS branch_name,
           s.state_name,
           b.address,
-          b.location,
+          ST_X(b.location) AS location_x,
+          ST_Y(b.location) AS location_y,
           b.type,
           b.website,
           b.phone,
@@ -136,7 +148,20 @@ class Branch {
 
     try {
       const [results] = await db.query(query, [type]);
-      return results;
+      return results.map((b) => ({
+        branch_id: b.branch_id,
+        branch_name: b.branch_name,
+        state_name: b.state_name,
+        address: b.address,
+        location:
+          b.location_x != null && b.location_y != null
+            ? { x: Number(b.location_x), y: Number(b.location_y) }
+            : null,
+        type: b.type,
+        website: b.website ?? "",
+        phone: b.phone ?? "",
+        is_HQ: b.is_HQ,
+      }));
     } catch (error) {
       throw new Error(`Error fetching branches: ${error.message}`);
     }

@@ -31,6 +31,10 @@ const devotionalService = new DevotionalService();
 const hymnStorageService = require("../services/hymnStorageService");
 const ytStreamAdminService = require("../services/ytStreamAdminService");
 const broadcastNotificationsAdminService = require("../services/broadcastNotificationsAdminService");
+const { db: firestoreDb } = require("../utils/firebase/index");
+
+const APP_CONFIG_COLLECTION = "appConfig";
+const MOBILE_UPDATE_DOC = "mobile_update";
 
 /** Public: accept invitation */
 router.post("/invitations/accept", async (req, res) => {
@@ -188,6 +192,112 @@ router.get(
   }
 );
 
+router.get(
+  "/mobile-update-config",
+  requirePermission("admin:manage_app_update"),
+  async (req, res) => {
+    try {
+      const snap = await firestoreDb
+        .collection(APP_CONFIG_COLLECTION)
+        .doc(MOBILE_UPDATE_DOC)
+        .get();
+      const d = snap.exists ? snap.data() || {} : {};
+      res.json({
+        status: "success",
+        config: {
+          enabled: d.enabled !== false,
+          latest_version: d.latest_version ?? "",
+          latest_build: d.latest_build ?? null,
+          min_supported_build: d.min_supported_build ?? null,
+          message: d.message ?? "",
+          update_url: d.update_url ?? "",
+          ios_url: d.ios_url ?? "",
+          android_url: d.android_url ?? "",
+          updated_at: d.updated_at ?? null,
+          updated_by: d.updated_by ?? null,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ status: "error", message: error.message });
+    }
+  }
+);
+
+router.put(
+  "/mobile-update-config",
+  requirePermission("admin:manage_app_update"),
+  async (req, res) => {
+    try {
+      const body = req.body ?? {};
+      const enabled = body.enabled !== false;
+      const latestVersion =
+        body.latest_version != null ? String(body.latest_version).trim() : "";
+      const latestBuild =
+        body.latest_build == null || body.latest_build === ""
+          ? null
+          : Number(body.latest_build);
+      const minSupportedBuild =
+        body.min_supported_build == null || body.min_supported_build === ""
+          ? null
+          : Number(body.min_supported_build);
+      const message = body.message != null ? String(body.message).trim() : "";
+      const updateUrl =
+        body.update_url != null ? String(body.update_url).trim() : "";
+      const iosUrl = body.ios_url != null ? String(body.ios_url).trim() : "";
+      const androidUrl =
+        body.android_url != null ? String(body.android_url).trim() : "";
+
+      if (latestBuild != null && (!Number.isFinite(latestBuild) || latestBuild < 0)) {
+        return res.status(400).json({
+          status: "error",
+          message: "latest_build must be a valid non-negative number",
+        });
+      }
+      if (
+        minSupportedBuild != null &&
+        (!Number.isFinite(minSupportedBuild) || minSupportedBuild < 0)
+      ) {
+        return res.status(400).json({
+          status: "error",
+          message: "min_supported_build must be a valid non-negative number",
+        });
+      }
+      if (
+        latestBuild != null &&
+        minSupportedBuild != null &&
+        minSupportedBuild > latestBuild
+      ) {
+        return res.status(400).json({
+          status: "error",
+          message: "min_supported_build cannot be greater than latest_build",
+        });
+      }
+
+      const payload = {
+        enabled,
+        latest_version: latestVersion,
+        latest_build: latestBuild,
+        min_supported_build: minSupportedBuild,
+        message,
+        update_url: updateUrl,
+        ios_url: iosUrl,
+        android_url: androidUrl,
+        updated_at: new Date().toISOString(),
+        updated_by: req.user?.email || req.user?.username || "admin",
+      };
+
+      await firestoreDb
+        .collection(APP_CONFIG_COLLECTION)
+        .doc(MOBILE_UPDATE_DOC)
+        .set(payload, { merge: true });
+
+      res.json({ status: "success", config: payload });
+    } catch (error) {
+      res.status(400).json({ status: "error", message: error.message });
+    }
+  }
+);
+
 /** Paginated Firebase Auth users + subscription flag; ?email= for exact lookup. */
 router.get(
   "/app-users",
@@ -213,6 +323,85 @@ router.get(
       res.json({ status: "success", ...data });
     } catch (error) {
       res.status(500).json({ status: "error", message: error.message });
+    }
+  }
+);
+
+router.post(
+  "/app-users/subscribe",
+  requirePermission("admin:manage_subscribers"),
+  async (req, res) => {
+    try {
+      const rawUid = req.body?.uid;
+      const rawEmail = req.body?.email;
+      const identifier = String(req.body?.identifier || "").trim();
+      const planId = Number(req.body?.planId);
+      const expiresAt = req.body?.expiresAt ?? null;
+
+      let uid = String(rawUid || "").trim();
+      let email = String(rawEmail || "").trim().toLowerCase();
+
+      if (!uid && !email && identifier) {
+        if (identifier.includes("@")) {
+          email = identifier.toLowerCase();
+        } else {
+          uid = identifier;
+        }
+      }
+
+      let authUser = null;
+      if (uid) {
+        authUser = await appUsersAdminService.getAppUserByUid(uid);
+      } else if (email) {
+        authUser = await appUsersAdminService.getAppUserByEmail(email);
+      }
+
+      if (!authUser) {
+        return res.status(404).json({
+          status: "error",
+          message: "User not found. Only existing app users can be subscribed.",
+        });
+      }
+
+      uid = authUser.uid;
+      email = String(authUser.email || email || "").trim().toLowerCase();
+      if (!email) {
+        return res.status(400).json({
+          status: "error",
+          message: "User does not have an email. Cannot create subscription record.",
+        });
+      }
+
+      if (!Number.isFinite(planId) || planId <= 0) {
+        return res.status(400).json({
+          status: "error",
+          message: "planId is required",
+        });
+      }
+
+      const result = await adminSubscriptionService.adminGrantSubscription({
+        uid,
+        email,
+        planId,
+        expiresAt,
+      });
+
+      if (result?.outcome === "already_subscribed") {
+        return res.json({
+          status: "success",
+          outcome: "already_subscribed",
+          message: "User already has an active subscription.",
+          uid,
+        });
+      }
+
+      res.json({
+        status: "success",
+        outcome: "granted",
+        uid,
+      });
+    } catch (error) {
+      res.status(400).json({ status: "error", message: error.message });
     }
   }
 );
@@ -680,6 +869,20 @@ router.post(
       res.json({ status: "success" });
     } catch (error) {
       res.status(400).json({ status: "error", message: error.message });
+    }
+  }
+);
+
+/** MySQL subscription_plans — amounts, codes, active flag (super_admin via admin:manage_plans). */
+router.get(
+  "/subscriber-plans",
+  requirePermission("admin:manage_subscribers"),
+  async (req, res) => {
+    try {
+      const plans = await SubscriptionPlanModel.getAllPlans();
+      res.json({ status: "success", plans });
+    } catch (error) {
+      res.status(500).json({ status: "error", message: error.message });
     }
   }
 );

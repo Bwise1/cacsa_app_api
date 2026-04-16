@@ -174,3 +174,53 @@ exports.getPlanLabelsForUids = async (uids) => {
     return map;
   }
 };
+
+/**
+ * Admin app users: map Firebase uid -> subscribed-at timestamp (ISO string).
+ * Includes:
+ * - active individual/owner rows from `subscriptions`
+ * - active family member access from `family_members` + `family_groups`
+ *
+ * @param {string[]} uids
+ * @returns {Promise<Map<string, string>>}
+ */
+exports.getSubscribedAtForUids = async (uids) => {
+  const map = new Map();
+  const uniq = [...new Set((uids || []).filter(Boolean))];
+  if (!uniq.length) return map;
+
+  try {
+    const placeholders = uniq.map(() => "?").join(",");
+    const [rows] = await db.query(
+      `SELECT t.uid, t.subscribed_at
+       FROM (
+         SELECT s.uid AS uid, s.created_at AS subscribed_at
+         FROM subscriptions s
+         WHERE s.uid IN (${placeholders}) AND s.status = 'active'
+         UNION ALL
+         SELECT fm.uid AS uid, COALESCE(fm.student_verified_at, fm.created_at) AS subscribed_at
+         FROM family_members fm
+         INNER JOIN family_groups fg ON fg.id = fm.family_id AND fg.status = 'active'
+         WHERE fm.uid IN (${placeholders}) AND fm.status = 'active'
+       ) t`,
+      [...uniq, ...uniq]
+    );
+
+    for (const r of rows) {
+      const uid = r.uid;
+      if (!uid) continue;
+      const dt = r.subscribed_at ? new Date(r.subscribed_at) : null;
+      if (!dt || Number.isNaN(dt.getTime())) continue;
+      const iso = dt.toISOString();
+      const prev = map.get(uid);
+      if (!prev || new Date(iso).getTime() > new Date(prev).getTime()) {
+        map.set(uid, iso);
+      }
+    }
+
+    return map;
+  } catch (e) {
+    console.error("getSubscribedAtForUids:", e.message);
+    return map;
+  }
+};

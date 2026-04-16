@@ -86,6 +86,25 @@ async function getAppUserByEmail(email) {
   }
 }
 
+/**
+ * Exact uid lookup (single Auth API call).
+ */
+async function getAppUserByUid(uid) {
+  try {
+    const u = await auth.getUser(String(uid).trim());
+    return {
+      uid: u.uid,
+      email: u.email || "",
+      emailVerified: u.emailVerified,
+      createdAt: u.metadata.creationTime,
+      lastSignInAt: u.metadata.lastSignInTime,
+    };
+  } catch (e) {
+    if (e.code === "auth/user-not-found") return null;
+    throw e;
+  }
+}
+
 /** Matches overview KPI when data uses lowercase "active"; also accepts legacy casing. */
 function subscriptionDocIsActive(d) {
   if (!d || typeof d.status !== "string") return false;
@@ -124,6 +143,23 @@ async function attachMysqlPlanLabels(users) {
         mysqlPlanTier: m.planTier,
       },
     };
+  });
+}
+
+/** Attach subscribedAt (ISO) from MySQL active subscription/family rows. */
+async function attachSubscribedAt(users) {
+  if (!users.length) return users;
+  let dates;
+  try {
+    dates = await SubscriptionModel.getSubscribedAtForUids(users.map((u) => u.uid));
+  } catch (e) {
+    console.error("attachSubscribedAt:", e.message);
+    return users;
+  }
+  return users.map((u) => {
+    const subscribedAt = dates.get(u.uid);
+    if (!subscribedAt) return u;
+    return { ...u, subscribedAt };
   });
 }
 
@@ -170,44 +206,23 @@ async function fetchAuthUsersByUids(uids) {
 async function listSubscribedUsersFromFirestore(opts) {
   const maxResults = Math.min(Math.max(opts.maxResults ?? 50, 1), 1000);
   const raw = decodeListCursor(opts.pageToken);
-  const lastUid =
-    raw && typeof raw.lastUid === "string" && raw.lastUid.length > 0
-      ? raw.lastUid
-      : null;
+  const offset =
+    raw && Number.isFinite(Number(raw.offset)) && Number(raw.offset) >= 0
+      ? Number(raw.offset)
+      : 0;
 
   let q = subscriptionsCollection
     .where("status", "==", "active")
-    .orderBy(FieldPath.documentId())
+    .offset(offset)
     .limit(maxResults);
-
-  if (lastUid) {
-    q = q.startAfter(lastUid);
-  }
 
   const snap = await q.get();
   const docs = snap.docs;
 
-  const uids = docs.map((d) => d.id);
-  const authByUid = await fetchAuthUsersByUids(uids);
-
   const users = docs.map((docSnap) => {
     const uid = docSnap.id;
     const data = docSnap.data();
-    const rec = authByUid.get(uid);
     const subscriptionInfo = pickSubscriptionInfoFields(data);
-
-    if (rec) {
-      return {
-        uid: rec.uid,
-        email: rec.email || "",
-        emailVerified: rec.emailVerified,
-        createdAt: rec.metadata.creationTime,
-        lastSignInAt: rec.metadata.lastSignInTime,
-        isSubscribed: true,
-        ...(subscriptionInfo ? { subscriptionInfo } : {}),
-      };
-    }
-
     return {
       uid,
       email: (data && data.email) || "",
@@ -215,14 +230,13 @@ async function listSubscribedUsersFromFirestore(opts) {
       createdAt: "",
       lastSignInAt: "",
       isSubscribed: true,
-      authUserMissing: true,
       ...(subscriptionInfo ? { subscriptionInfo } : {}),
     };
   });
 
   const nextPageToken =
     docs.length === maxResults
-      ? encodeListCursor({ lastUid: docs[docs.length - 1].id })
+      ? encodeListCursor({ offset: offset + docs.length })
       : null;
 
   return { users, nextPageToken };
@@ -257,7 +271,7 @@ function decodeListCursor(token) {
 /**
  * Walks Firebase Auth pages until we have `maxResults` rows matching `subscription`,
  * or Firebase is exhausted. Cursor carries overflow rows + next Firebase token.
- * Used for unsubscribed filter (and legacy subscribed path is replaced).
+ * Used for unsubscribed filter (and subscribed fallback).
  */
 async function listAppUsersFiltered(opts) {
   const maxResults = Math.min(Math.max(opts.maxResults ?? 50, 1), 1000);
@@ -322,6 +336,7 @@ async function listAppUsers(opts = {}) {
       return { users: [], nextPageToken: null };
     }
     enriched = await attachMysqlPlanLabels(enriched);
+    enriched = await attachSubscribedAt(enriched);
     return { users: enriched, nextPageToken: null };
   }
 
@@ -329,10 +344,20 @@ async function listAppUsers(opts = {}) {
 
   let result;
   if (subscription === "subscribed") {
-    result = await listSubscribedUsersFromFirestore({
-      maxResults,
-      pageToken: opts.pageToken,
-    });
+    try {
+      result = await listSubscribedUsersFromFirestore({
+        maxResults,
+        pageToken: opts.pageToken,
+      });
+    } catch (e) {
+      // Fallback when Firestore index/order constraints fail in some environments.
+      console.error("listSubscribedUsersFromFirestore fallback:", e.message);
+      result = await listAppUsersFiltered({
+        maxResults,
+        pageToken: opts.pageToken,
+        subscription,
+      });
+    }
   } else if (subscription === "unsubscribed") {
     result = await listAppUsersFiltered({
       maxResults,
@@ -358,6 +383,7 @@ async function listAppUsers(opts = {}) {
 
   if (result.users?.length) {
     result.users = await attachMysqlPlanLabels(result.users);
+    result.users = await attachSubscribedAt(result.users);
   }
   return result;
 }
@@ -386,5 +412,6 @@ module.exports = {
   invalidateAuthUserCountCache,
   listAppUsers,
   getAppUserByEmail,
+  getAppUserByUid,
   deleteFirebaseUser,
 };

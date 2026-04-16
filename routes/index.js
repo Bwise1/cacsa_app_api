@@ -8,6 +8,7 @@ const statesController = require("../controllers/StatesController");
 const branchesController = require("../controllers/BranchController");
 const userController = require("../controllers/userController");
 const adminController = require("../controllers/AdminController");
+const appConfigController = require("../controllers/AppConfigController");
 const adsController = require("../controllers/AdsController");
 const referralsController = require("../controllers/ReferralsController");
 const devotionalController = require("../controllers/DevotionalController");
@@ -45,6 +46,7 @@ router.use("/referrals", referralsController);
 router.use("/devotionals", devotionalController);
 
 router.use("/admin", adminController);
+router.use("/app-config", appConfigController);
 
 // app.post("/paystack/initialize-transaction", async (req, res) => {
 //   try {
