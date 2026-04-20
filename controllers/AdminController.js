@@ -209,6 +209,8 @@ router.get(
           latest_version: d.latest_version ?? "",
           latest_build: d.latest_build ?? null,
           min_supported_build: d.min_supported_build ?? null,
+          ios_latest_build: d.ios_latest_build ?? null,
+          ios_min_supported_build: d.ios_min_supported_build ?? null,
           message: d.message ?? "",
           update_url: d.update_url ?? "",
           ios_url: d.ios_url ?? "",
@@ -246,6 +248,14 @@ router.put(
       const iosUrl = body.ios_url != null ? String(body.ios_url).trim() : "";
       const androidUrl =
         body.android_url != null ? String(body.android_url).trim() : "";
+      const iosLatestBuild =
+        body.ios_latest_build == null || body.ios_latest_build === ""
+          ? null
+          : Number(body.ios_latest_build);
+      const iosMinSupportedBuild =
+        body.ios_min_supported_build == null || body.ios_min_supported_build === ""
+          ? null
+          : Number(body.ios_min_supported_build);
 
       if (latestBuild != null && (!Number.isFinite(latestBuild) || latestBuild < 0)) {
         return res.status(400).json({
@@ -278,6 +288,8 @@ router.put(
         latest_version: latestVersion,
         latest_build: latestBuild,
         min_supported_build: minSupportedBuild,
+        ios_latest_build: iosLatestBuild,
+        ios_min_supported_build: iosMinSupportedBuild,
         message,
         update_url: updateUrl,
         ios_url: iosUrl,

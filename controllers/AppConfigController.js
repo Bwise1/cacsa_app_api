@@ -20,13 +20,26 @@ router.get("/mobile-update", async (req, res) => {
       });
     }
     const d = snap.data() || {};
+    const platform = (req.query.platform || "").toLowerCase(); // "ios" | "android"
+
+    // Use platform-specific build fields if present, fall back to shared fields
+    const latestBuild =
+      platform === "ios"
+        ? (d.ios_latest_build ?? d.latest_build ?? null)
+        : (d.latest_build ?? null);
+
+    const minSupportedBuild =
+      platform === "ios"
+        ? (d.ios_min_supported_build ?? d.min_supported_build ?? null)
+        : (d.min_supported_build ?? null);
+
     return res.json({
       status: "success",
       config: {
         enabled: d.enabled !== false,
         latest_version: d.latest_version ?? null,
-        latest_build: d.latest_build ?? null,
-        min_supported_build: d.min_supported_build ?? null,
+        latest_build: latestBuild,
+        min_supported_build: minSupportedBuild,
         message: d.message ?? null,
         update_url: d.update_url ?? null,
         ios_url: d.ios_url ?? null,
