@@ -26,6 +26,16 @@ class AdminInvitationModel {
     return rows[0] ?? null;
   }
 
+  async findPendingByEmail(email) {
+    const [rows] = await db.query(
+      `SELECT id FROM admin_invitations
+       WHERE email = ? AND accepted_at IS NULL AND revoked_at IS NULL
+       LIMIT 1`,
+      [email]
+    );
+    return rows[0] ?? null;
+  }
+
   async listPending() {
     const [rows] = await db.query(
       `SELECT i.id, i.email, i.role_id, i.expires_at, i.created_at, i.created_by_user_id,

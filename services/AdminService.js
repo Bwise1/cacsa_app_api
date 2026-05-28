@@ -80,12 +80,17 @@ class AdminService {
     if (role.slug === "super_admin") {
       throw new Error("Cannot invite super_admin via API");
     }
+    const normalizedEmail = email.trim().toLowerCase();
+    const existing = await this.invitationModel.findPendingByEmail(normalizedEmail);
+    if (existing) {
+      throw new Error("A pending invitation already exists for this email");
+    }
     const token = crypto.randomBytes(32).toString("hex");
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + INVITE_EXPIRY_DAYS);
     await this.invitationModel.create({
-      email: email.trim().toLowerCase(),
+      email: normalizedEmail,
       roleId,
       tokenHash,
       expiresAt,
